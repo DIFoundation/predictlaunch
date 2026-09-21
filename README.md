@@ -1,36 +1,108 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PredictLaunch
+
+**The launchpad where conviction is measurable.**
+
+Communities create prediction markets about a token’s future milestones, success metrics, or related real-world events. High conviction and volume on those markets unlock better launch parameters, priority access, or marketing boosts on a Meteora Dynamic Bonding Curve. The prediction market is not the product — it is the proof of demand that powers better launches.
+
+---
+
+## Problem
+
+Most token launches on Solana are pure speculation. There is almost no transparent, on-chain signal of real demand or community conviction before a token goes live.
+
+## Solution
+
+PredictLaunch turns community belief into a measurable signal.  
+Prediction markets (Panta) act as proof of demand. When those markets show strong volume and conviction, the linked token launch on Meteora DBC receives better parameters and visibility.
+
+---
+
+## Key Features
+
+- Create and browse prediction markets (Panta)
+- Launch tokens on Meteora Dynamic Bonding Curve
+- Link markets → launches to generate a **Conviction Score**
+- Unlock benefits based on conviction level
+- All Solana RPC traffic routed through **RPC Fast**
+- Clean portfolio and discovery experience
+
+---
+
+## Tech Stack
+
+| Layer              | Technology                              |
+|--------------------|-----------------------------------------|
+| Frontend           | Next.js 16 (App Router), Tailwind CSS   |
+| Wallet             | Solana Wallet Adapter                   |
+| Prediction Markets | Panta API                               |
+| Token Launches     | Meteora Dynamic Bonding Curve SDK       |
+| RPC                | RPC Fast                                |
+| State (MVP)        | In-memory store (easily replaceable)    |
+
+---
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
+cp .env.example .env.local   # fill in your keys
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Environment Variables
 
-## Learn More
+```env
+NEXT_PUBLIC_RPC_ENDPOINT=your_rpc_fast_https_endpoint
+PANTA_API_KEY=your_panta_api_key
+PANTA_API_BASE_URL=https://live-api.panta.market/api/v1
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Project Structure
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+src/
+├── app/                    # Next.js App Router pages
+│   ├── markets/            # Market list + detail
+│   ├── launches/           # Launch list
+│   ├── create/             # Create prediction market
+│   └── launch/             # Create token launch
+├── components/
+│   ├── layout/             # Navbar, etc.
+│   └── wallet/             # Wallet provider
+├── lib/
+│   ├── panta/              # Panta API helpers
+│   ├── meteora/            # Meteora DBC helpers
+│   ├── rpc/                # RPC Fast connection
+│   └── conviction/         # Market ↔ Launch logic + scoring
+└── types/                  # Shared TypeScript types
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Hackathon Tracks
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Submitted to Colosseum Crypto World’s Fair side tracks:
+
+- Superteam Nigeria Track
+- Panta API Side Track
+- Best use of Meteora's Dynamic Bonding Curve (DBC)
+- RPC Fast Infrastructure Sidetrack
+
+---
+
+## Team
+
+Built in Nigeria for the Crypto World’s Fair.
+
+---
+
+## License
+
+MIT
