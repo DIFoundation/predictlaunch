@@ -4,6 +4,9 @@ import { useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { Transaction, VersionedTransaction } from "@solana/web3.js";
 import { useRouter } from "next/navigation";
+import { useNetwork } from "@/components/network/NetworkProvider";
+import { PANTA_WRITES_ENABLED } from "@/lib/config/network";
+import { sendAndConfirm } from "@/lib/rpc/connection";
 
 type Quote = Record<string, unknown> & { createId?: string; paymentUsdc?: number | string };
 
@@ -37,6 +40,7 @@ export default function CreateMarketPage() {
   const { publicKey, signTransaction } = useWallet();
   const { connection } = useConnection();
   const router = useRouter();
+  const { ready, blockReason } = useNetwork();
 
   const [question, setQuestion] = useState("");
   const [description, setDescription] = useState("");
@@ -52,6 +56,8 @@ export default function CreateMarketPage() {
   async function handleQuote(e: React.FormEvent) {
     e.preventDefault();
     if (!publicKey) return setError("Please connect your wallet first");
+    if (!PANTA_WRITES_ENABLED) return setError("Panta builds mainnet transactions. Set NEXT_PUBLIC_SOLANA_NETWORK=mainnet to create markets.");
+    if (!ready) return setError(blockReason);
     if (question.trim().length < 10) return setError("Question must be at least 10 characters");
 
     setBusy(true);
@@ -105,10 +111,8 @@ export default function CreateMarketPage() {
       setStatus("Approve the transaction in your wallet...");
       const signed = await signTransaction(tx);
 
-      setStatus("Broadcasting...");
-      const signature = await connection.sendRawTransaction(signed.serialize());
-      const latest = await connection.getLatestBlockhash("confirmed");
-      await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+      setStatus("Broadcasting and confirming...");
+      const signature = await sendAndConfirm(connection, signed);
 
       setStatus("Registering market with Panta...");
       await postJson("/api/panta/register", { createId, signature });
@@ -135,6 +139,13 @@ export default function CreateMarketPage() {
           Create a prediction market · <span className="text-zinc-300">Powered by Panta</span>
         </p>
       </div>
+
+      {!PANTA_WRITES_ENABLED && (
+        <div className="p-4 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-200 text-sm">
+          The app is on <b>devnet</b>. Panta builds mainnet transactions, so creating markets is only
+          available when <code>NEXT_PUBLIC_SOLANA_NETWORK=mainnet</code>.
+        </div>
+      )}
 
       <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm">
         Creating a market on Panta costs real USDC (platform fee + seed liquidity). You will see the
@@ -197,7 +208,7 @@ export default function CreateMarketPage() {
         {!quote && (
           <button
             type="submit"
-            disabled={busy || !publicKey}
+            disabled={busy || !publicKey || !PANTA_WRITES_ENABLED || !ready}
             className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
           >
             {busy ? "Working..." : publicKey ? "Get Quote" : "Connect Wallet First"}
@@ -241,7 +252,7 @@ export default function CreateMarketPage() {
       )}
 
       {error && (
-        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm whitespace-pre-wrap break-words">
+        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm whitespace-pre-wrap wrap-break-words">
           {error}
         </div>
       )}

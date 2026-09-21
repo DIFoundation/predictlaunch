@@ -9,18 +9,17 @@ export interface LinkedMarket {
 export type ConvictionLevel = "Low" | "Medium" | "High" | "Very High";
 
 export interface LaunchRecord {
-  id: string;
+  mint: string;
+  /** DBC pool + config addresses, so the pool can be read without getProgramAccounts */
+  pool: string;
+  config: string;
+  signature: string;
   name: string;
   symbol: string;
-  mint?: string;
-  signature?: string;
   description?: string;
   linkedMarketIds: string[];
   convictionScore: number;
-  /** Base trading fee (bps) that the conviction level unlocked at launch. */
-  feeBps?: number;
-  /** "onchain" = pool created via Meteora DBC; "record" = MVP record only. */
-  mode: "onchain" | "record";
+  feeBps: number;
   createdAt: string;
   creator: string;
 }

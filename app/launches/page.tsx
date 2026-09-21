@@ -1,7 +1,10 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useNetwork } from "@/components/network/NetworkProvider";
+import { loadPoolByMint, loadPoolsByCreator, type PoolView } from "@/lib/meteora/pools";
 import { launchStore } from "@/lib/conviction/store";
 import { levelForScore } from "@/lib/conviction/score";
 
@@ -13,103 +16,109 @@ function levelStyles(score: number) {
 }
 
 export default function LaunchesPage() {
-  const launches = useSyncExternalStore(
-    launchStore.subscribe,
-    launchStore.getSnapshot,
-    launchStore.getServerSnapshot
-  );
+  const { publicKey } = useWallet();
+  const { connection } = useConnection();
+  const { ready, blockReason } = useNetwork();
+  const records = useSyncExternalStore(launchStore.subscribe, launchStore.getSnapshot, launchStore.getServerSnapshot);
+
+  const [pools, setPools] = useState<PoolView[] | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    if (!publicKey) return;
+    setError(null);
+    setWarning(null);
+    let list: PoolView[] = [];
+    try {
+      list = await loadPoolsByCreator(connection, publicKey);
+    } catch (e) {
+      // Most likely the RPC plan blocks getProgramAccounts. Fall back to launches this browser knows about.
+      setWarning(
+        `Could not list all your launches from the chain (${(e instanceof Error ? e.message : String(e)).slice(0, 160)}). Showing launches made from this browser only. See /status.`
+      );
+    }
+    const known = new Set(list.map((p) => p.mint));
+    const mine = launchStore.getSnapshot().filter((r) => r.creator === publicKey.toBase58() && !known.has(r.mint));
+    const extra = await Promise.all(
+      mine.map((r) => loadPoolByMint(connection, r.mint, r.pool).catch(() => null))
+    );
+    setPools([...list, ...extra.filter((p): p is PoolView => !!p)]);
+  }, [connection, publicKey]);
+
+  useEffect(() => {
+    if (!ready || !publicKey) return;
+    let alive = true;
+    (async () => {
+      try {
+        if (alive) await load();
+      } catch (e) {
+        if (alive) setError(e instanceof Error ? e.message : String(e));
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [ready, publicKey, load]);
 
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">Launches</h1>
-          <p className="text-zinc-400 mt-1">Tokens launched with conviction signals</p>
-          <p className="text-xs text-zinc-600 mt-1">
-            Stored in this browser (MVP). A shared database is on the roadmap.
-          </p>
+          <h1 className="text-3xl font-bold">My Launches</h1>
+          <p className="text-zinc-400 mt-1">Bonding-curve pools you created — live from the chain</p>
         </div>
-        <Link
-          href="/launch"
-          className="shrink-0 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium transition"
-        >
+        <Link href="/launch" className="shrink-0 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium transition">
           + Launch Token
         </Link>
       </div>
 
-      {launches.length === 0 ? (
-        <div className="text-center py-20 text-zinc-500">
-          <p className="text-lg">No launches yet</p>
-          <p className="text-sm mt-2">Create a launch and optionally link a prediction market.</p>
-          <Link
-            href="/launch"
-            className="inline-block mt-6 px-5 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium text-white transition"
-          >
+      {!publicKey && <p className="text-zinc-500">Connect your wallet to see your launches.</p>}
+      {publicKey && !ready && <p className="text-zinc-500 text-sm">{blockReason}</p>}
+      {warning && <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm wrap-break-words">{warning}</div>}
+      {error && <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm wrap-break-words">{error}</div>}
+      {publicKey && ready && pools === null && !error && <p className="text-zinc-500 text-sm">Reading pools from the chain…</p>}
+
+      {pools && pools.length === 0 && (
+        <div className="text-center py-16 text-zinc-500">
+          <p className="text-lg">No launches from this wallet on this network</p>
+          <Link href="/launch" className="inline-block mt-6 px-5 py-2.5 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium text-white transition">
             Launch Token
           </Link>
         </div>
-      ) : (
-        <div className="grid gap-4">
-          {launches.map((l) => (
-            <div
-              key={l.id}
-              className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 transition"
+      )}
+
+      <div className="grid gap-4">
+        {pools?.map((p) => {
+          const rec = records.find((r) => r.mint === p.mint);
+          return (
+            <Link
+              key={p.pool}
+              href={`/launches/${p.mint}`}
+              className="block p-5 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <h3 className="font-semibold text-lg">
-                    {l.name} <span className="text-zinc-500 font-normal">(${l.symbol})</span>
+                    {p.name || rec?.name || "Unnamed"} <span className="text-zinc-500 font-normal">(${p.symbol || rec?.symbol || "?"})</span>
                   </h3>
-                  {l.description && (
-                    <p className="text-sm text-zinc-400 mt-1 line-clamp-2">{l.description}</p>
-                  )}
-                  <div className="flex flex-wrap items-center gap-2 mt-2 text-xs text-zinc-500">
-                    <span>{new Date(l.createdAt).toLocaleString()}</span>
-                    <span
-                      className={`px-2 py-0.5 rounded-full border ${
-                        l.mode === "onchain"
-                          ? "border-emerald-500/30 text-emerald-400"
-                          : "border-zinc-700 text-zinc-400"
-                      }`}
-                    >
-                      {l.mode === "onchain" ? "on-chain" : "record only"}
-                    </span>
-                    {l.feeBps !== undefined && <span>fee {(l.feeBps / 100).toFixed(2)}%</span>}
+                  <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-sm text-zinc-400">
+                    <span>Price {p.priceSol.toPrecision(3)} SOL</span>
+                    <span>MC {p.marketCapSol.toLocaleString(undefined, { maximumFractionDigits: 1 })} SOL</span>
+                    <span>Fee {(p.feeBps / 100).toFixed(2)}%</span>
+                    <span>{p.isMigrated ? "Graduated" : `${(p.progress * 100).toFixed(0)}% to graduation`}</span>
                   </div>
                 </div>
-                <div
-                  className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border ${levelStyles(
-                    l.convictionScore
-                  )}`}
-                >
-                  {levelForScore(l.convictionScore)} · {l.convictionScore}
-                </div>
+                {rec && (
+                  <div className={`shrink-0 px-3 py-1.5 rounded-full text-xs font-medium border ${levelStyles(rec.convictionScore)}`}>
+                    {levelForScore(rec.convictionScore)} · {rec.convictionScore}
+                  </div>
+                )}
               </div>
-
-              {(l.linkedMarketIds.length > 0 || l.mint) && (
-                <div className="mt-4 pt-3 border-t border-zinc-800 space-y-1 text-xs text-zinc-500">
-                  {l.linkedMarketIds[0] && (
-                    <p className="break-all">
-                      Linked market:{" "}
-                      <Link
-                        href={`/markets/${l.linkedMarketIds[0]}`}
-                        className="text-zinc-400 hover:text-white underline underline-offset-2"
-                      >
-                        {l.linkedMarketIds[0]}
-                      </Link>
-                    </p>
-                  )}
-                  {l.mint && (
-                    <p className="break-all">
-                      Mint: <code className="text-zinc-400">{l.mint}</code>
-                    </p>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+            </Link>
+          );
+        })}
+      </div>
     </div>
   );
 }

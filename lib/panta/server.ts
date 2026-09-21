@@ -1,6 +1,6 @@
 import type { CreateQuoteInput } from "@/types/panta";
 
-const PANTA_BASE_URL =
+export const PANTA_BASE_URL =
   process.env.PANTA_API_BASE_URL || "https://live-api.panta.market/api/v1";
 
 export class PantaError extends Error {
@@ -17,7 +17,7 @@ export class PantaError extends Error {
  * NOTE: Panta requires trailing slashes on every path ("/markets/", not "/markets").
  * All calls run server-side only so the API key never reaches the browser.
  */
-async function pantaFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+export async function pantaFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
   const apiKey = process.env.PANTA_API_KEY;
   if (!apiKey) {
     throw new PantaError("PANTA_API_KEY is not set (add it to .env.local / Vercel env vars)", 500);
@@ -76,6 +76,11 @@ export const pantaServer = {
 
   getMarket(marketId: string) {
     return pantaFetch(`/markets/${encodeURIComponent(marketId)}/`);
+  },
+
+  /** Positions for a wallet (path taken from the team's original client; verify against a live key). */
+  getPositions(wallet: string) {
+    return pantaFetch(`/positions/?wallet=${encodeURIComponent(wallet)}`);
   },
 
   /** Step 1: quote. Response includes `createId` and the USDC fee (`paymentUsdc`). */

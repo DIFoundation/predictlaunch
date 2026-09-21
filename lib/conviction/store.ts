@@ -1,25 +1,35 @@
 import { LaunchRecord } from "@/types/conviction";
 
 /**
- * MVP persistence: browser localStorage.
- * (The previous module-level array lived in JS memory and vanished on every
- * page refresh. localStorage survives reloads and needs no backend; swap for a
- * DB later.) Exposed as an external store so React components can subscribe
- * with useSyncExternalStore -- SSR-safe and no setState-in-effect.
+ * Small browser cache (localStorage) for app-only metadata about launches, plus a
+ * list of token mints the user has opened/traded (so the portfolio can show
+ * their live on-chain balances). On-chain data is never cached here.
+ * Exposed as an external store for useSyncExternalStore (SSR-safe).
  */
-const KEY = "predictlaunch:launches:v1";
+const KEY = "predictlaunch:launches:v2";
+const MINTS_KEY = "predictlaunch:mints:v1";
 const EMPTY: LaunchRecord[] = [];
+const EMPTY_MINTS: string[] = [];
 
 let cache: LaunchRecord[] | null = null;
+let mintsCache: string[] | null = null;
 const listeners = new Set<() => void>();
 
-function read(): LaunchRecord[] {
-  if (typeof window === "undefined") return EMPTY;
+function readJson<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
   try {
-    const raw = window.localStorage.getItem(KEY);
-    return raw ? (JSON.parse(raw) as LaunchRecord[]) : EMPTY;
+    const raw = window.localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
   } catch {
-    return EMPTY;
+    return fallback;
+  }
+}
+
+function write(key: string, value: unknown) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* storage blocked/full: keep the in-memory copy */
   }
 }
 
@@ -29,17 +39,15 @@ function emit() {
 
 if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
-    if (e.key === KEY) {
-      cache = null;
-      emit();
-    }
+    if (e.key === KEY) cache = null;
+    if (e.key === MINTS_KEY) mintsCache = null;
+    if (e.key === KEY || e.key === MINTS_KEY) emit();
   });
 }
 
 export const launchStore = {
-  /** Stable reference between changes (required by useSyncExternalStore). */
   getSnapshot(): LaunchRecord[] {
-    if (cache === null) cache = read();
+    if (cache === null) cache = readJson(KEY, EMPTY);
     return cache;
   },
   getServerSnapshot(): LaunchRecord[] {
@@ -49,26 +57,29 @@ export const launchStore = {
     listeners.add(listener);
     return () => listeners.delete(listener);
   },
-  getAll(): LaunchRecord[] {
-    return this.getSnapshot();
+  getByMint(mint: string): LaunchRecord | undefined {
+    return this.getSnapshot().find((l) => l.mint === mint);
   },
   add(launch: LaunchRecord) {
-    const next = [launch, ...this.getSnapshot()];
+    const next = [launch, ...this.getSnapshot().filter((l) => l.mint !== launch.mint)];
     cache = next;
-    try {
-      window.localStorage.setItem(KEY, JSON.stringify(next));
-    } catch {
-      /* storage full / blocked: keep in-memory copy */
-    }
+    write(KEY, next);
     emit();
   },
-  clear() {
-    cache = EMPTY;
-    try {
-      window.localStorage.removeItem(KEY);
-    } catch {
-      /* ignore */
-    }
+
+  // ---- mints the user has interacted with ----
+  getMintsSnapshot(): string[] {
+    if (mintsCache === null) mintsCache = readJson(MINTS_KEY, EMPTY_MINTS);
+    return mintsCache;
+  },
+  getMintsServerSnapshot(): string[] {
+    return EMPTY_MINTS;
+  },
+  rememberMint(mint: string) {
+    const cur = this.getMintsSnapshot();
+    if (cur.includes(mint)) return;
+    mintsCache = [mint, ...cur].slice(0, 50);
+    write(MINTS_KEY, mintsCache);
     emit();
   },
 };

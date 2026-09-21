@@ -1,5 +1,6 @@
 import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import { NATIVE_MINT } from "@solana/spl-token";
+import { sendAndConfirm, type SignTx } from "@/lib/rpc/connection";
 
 /**
  * Meteora Dynamic Bonding Curve launch.
@@ -35,6 +36,8 @@ export interface PreparedLaunch {
   tx: Transaction;
   baseMint: string;
   config: string;
+  /** Derived DBC pool address (lets us read the pool later without getProgramAccounts). */
+  pool: string;
   lastValidBlockHeight: number;
 }
 
@@ -124,10 +127,13 @@ export async function prepareLaunch(
   tx.recentBlockhash = blockhash;
   tx.partialSign(config, baseMint);
 
+  const pool = S.deriveDbcPoolAddress(NATIVE_MINT, baseMint.publicKey, config.publicKey);
+
   return {
     tx,
     baseMint: baseMint.publicKey.toBase58(),
     config: config.publicKey.toBase58(),
+    pool: pool.toBase58(),
     lastValidBlockHeight,
   };
 }
@@ -149,17 +155,8 @@ export async function simulateLaunch(connection: Connection, tx: Transaction): P
 export async function sendLaunch(
   connection: Connection,
   prepared: PreparedLaunch,
-  signTransaction: <T extends Transaction | VersionedTransaction>(tx: T) => Promise<T>
+  signTransaction: SignTx
 ): Promise<string> {
   const signed = await signTransaction(prepared.tx);
-  const signature = await connection.sendRawTransaction(signed.serialize());
-  await connection.confirmTransaction(
-    {
-      signature,
-      blockhash: prepared.tx.recentBlockhash!,
-      lastValidBlockHeight: prepared.lastValidBlockHeight,
-    },
-    "confirmed"
-  );
-  return signature;
+  return sendAndConfirm(connection, signed, prepared.lastValidBlockHeight);
 }

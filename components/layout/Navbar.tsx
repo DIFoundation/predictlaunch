@@ -5,7 +5,8 @@ import Link from "next/link";
 
 const LINKS = [
   { href: "/markets", label: "Markets" },
-  { href: "/launches", label: "Launches" },
+  { href: "/launches", label: "My Launches" },
+  { href: "/portfolio", label: "Portfolio" },
   { href: "/create", label: "Create Market" },
   { href: "/launch", label: "Launch Token" },
 ];
