@@ -2,7 +2,7 @@ import { NETWORK } from "@/lib/config/network";
 
 /**
  * Server-only: resolves the upstream RPC URL for the configured network.
- *   SOLANA_RPC_MAINNET / SOLANA_RPC_DEVNET   (preferred; NOT exposed to the browser)
+ *   SOLANA_RPC_MAINNET / SOLANA_RPC_DEVNET / SOLANA_RPC_TESTNET  (preferred; NOT exposed to the browser)
  *   NEXT_PUBLIC_RPC_ENDPOINT                 (legacy fallback, mainnet only)
  */
 export interface Upstream {
@@ -24,6 +24,14 @@ export function getUpstream(): Upstream {
     } else if (process.env.NEXT_PUBLIC_RPC_ENDPOINT?.trim()) {
       url = process.env.NEXT_PUBLIC_RPC_ENDPOINT.trim();
       source = "NEXT_PUBLIC_RPC_ENDPOINT (legacy)";
+    }
+  } else if (NETWORK === "testnet") {
+    if (process.env.SOLANA_RPC_TESTNET?.trim()) {
+      url = process.env.SOLANA_RPC_TESTNET.trim();
+      source = "SOLANA_RPC_TESTNET";
+    } else {
+      url = "https://api.testnet.solana.com";
+      source = "public testnet default";
     }
   } else if (process.env.SOLANA_RPC_DEVNET?.trim()) {
     url = process.env.SOLANA_RPC_DEVNET.trim();

@@ -1,7 +1,8 @@
 # Integrations Notes
 
 ## 1. RPC Fast
-- **Network switch:** `NEXT_PUBLIC_SOLANA_NETWORK=mainnet|devnet`; endpoints `SOLANA_RPC_MAINNET` / `SOLANA_RPC_DEVNET` (server-side).
+- **Network switch:** `NEXT_PUBLIC_SOLANA_NETWORK=mainnet|devnet|testnet`; endpoints `SOLANA_RPC_MAINNET` / `SOLANA_RPC_DEVNET` / `SOLANA_RPC_TESTNET` (server-side). The value is inlined at build time: set it in Vercel *before* deploying and redeploy after changing it.
+- **Testnet caveat:** `/status` looks up the Meteora DBC program on the configured cluster and reports if it is not deployed there.
 - **Relay:** browsers call `/api/rpc` (`app/api/rpc/route.ts`), which forwards to RPC Fast. Benefits: the key is never shipped to
   the client, no origin/CORS/domain-allowlist 403s, and every read/write still goes through RPC Fast. The relay is same-origin only,
   method-allowlisted, size/batch-limited and rate-limited.

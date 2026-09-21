@@ -4,7 +4,7 @@
 
 | Feature | Status | Notes |
 |---|---|---|
-| Network switch (mainnet/devnet) via `.env` | ✅ | Single var; RPC/genesis mismatch blocks transactions |
+| Network switch (mainnet/devnet/testnet) via `.env` | ✅ | Single var; RPC/genesis mismatch blocks transactions; `/status` checks DBC is deployed on the chosen cluster |
 | RPC relay (`/api/rpc`) | ✅ | Tested vs mock provider: relay, allowlist, cross-origin, batch/size limits, 403 handling; key never in client |
 | `/status` diagnostics | ✅ | Pinpoints failing RPC call, network mismatch, gPA plan limits, Panta key/API |
 | Real data only | ✅ | Demo toggle + record-only launches removed; markets, conviction, pools, balances are live |

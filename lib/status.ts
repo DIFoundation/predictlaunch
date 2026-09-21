@@ -58,6 +58,22 @@ export async function runDiagnostics(): Promise<{ network: string; checks: Check
       detail: bh.ok ? `${bh.ms}ms` : `HTTP ${bh.status}: ${(bh.json?.error?.message || bh.text || "").slice(0, 160)}`,
     });
 
+    const prog = await rpcCall("getAccountInfo", [DBC_PROGRAM, { encoding: "base64", dataSlice: { offset: 0, length: 0 } }]);
+    const progVal = (prog.json?.result as { value?: { executable?: boolean } | null } | undefined)?.value;
+    checks.push({
+      name: "Meteora DBC program deployed on this network",
+      ok: prog.ok && !!progVal?.executable,
+      detail: !prog.ok
+        ? `lookup failed: HTTP ${prog.status}`
+        : progVal?.executable
+          ? "found (executable)"
+          : `NOT found on ${NETWORK}`,
+      hint:
+        prog.ok && !progVal?.executable
+          ? `Meteora DBC is not deployed on ${NETWORK}, so token launches and curve trading cannot work here. Use devnet or mainnet.`
+          : undefined,
+    });
+
     const gpa = await rpcCall("getProgramAccounts", [
       DBC_PROGRAM,
       {

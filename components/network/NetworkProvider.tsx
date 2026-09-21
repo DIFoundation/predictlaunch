@@ -78,7 +78,7 @@ export function NetworkBanner() {
               : "border-sky-500/40 bg-sky-500/10 text-sky-300"
           }`}
         >
-          {network === "mainnet" ? "Mainnet — real funds" : "Devnet — test funds"}
+          {network === "mainnet" ? "Mainnet — real funds" : network === "testnet" ? "Testnet — test funds" : "Devnet — test funds"}
         </span>
         {state.status === "checking" && <span className="text-zinc-500">Connecting to RPC...</span>}
         {state.status === "ok" && <span className="text-zinc-500">RPC connected</span>}

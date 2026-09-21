@@ -36,8 +36,8 @@ Prediction markets (Panta) act as proof of demand. When those markets show stron
 | Wallet             | Solana Wallet Adapter                   |
 | Prediction Markets | Panta API                               |
 | Token Launches     | Meteora Dynamic Bonding Curve SDK       |
-| RPC                | RPC Fast                                |
-| State (MVP)        | In-memory store (easily replaceable)    |
+| RPC                | RPC Fast via a server-side relay (`/api/rpc`) |
+| State              | On-chain / Panta live data; localStorage only caches app metadata |
 
 ---
 
@@ -56,32 +56,36 @@ Open [http://localhost:3000](http://localhost:3000).
 ## Environment Variables
 
 ```env
-NEXT_PUBLIC_RPC_ENDPOINT=your_rpc_fast_https_endpoint
-PANTA_API_KEY=your_panta_api_key
+NEXT_PUBLIC_SOLANA_NETWORK=devnet        # mainnet | devnet | testnet (baked in at build time)
+SOLANA_RPC_MAINNET=...                   # RPC Fast, server-side only
+SOLANA_RPC_DEVNET=...                    # RPC Fast, server-side only
+SOLANA_RPC_TESTNET=...                   # optional; DBC availability on testnet is checked at /status
+PANTA_API_KEY=pk_live_...                # server-side only
 PANTA_API_BASE_URL=https://live-api.panta.market/api/v1
-NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
+
+Open `/status` after starting the app to verify the RPC, network and Panta connection.
 
 ---
 
 ## Project Structure
 
 ```
-src/
-├── app/                    # Next.js App Router pages
-│   ├── markets/            # Market list + detail
-│   ├── launches/           # Launch list
-│   ├── create/             # Create prediction market
-│   └── launch/             # Create token launch
-├── components/
-│   ├── layout/             # Navbar, etc.
-│   └── wallet/             # Wallet provider
-├── lib/
-│   ├── panta/              # Panta API helpers
-│   ├── meteora/            # Meteora DBC helpers
-│   ├── rpc/                # RPC Fast connection
-│   └── conviction/         # Market ↔ Launch logic + scoring
-└── types/                  # Shared TypeScript types
+app/                        # Next.js App Router pages + API routes
+├── markets/                # Market list + detail (live Panta data)
+├── launches/               # My launches (live from chain) + [mint] token page with buy/sell
+├── portfolio/              # SOL, launched-token balances, Panta positions
+├── status/                 # Diagnostics: RPC, network, Panta
+├── create/                 # Create prediction market (quote -> confirm -> sign -> register)
+├── launch/                 # Create token launch (conviction -> Meteora DBC)
+└── api/                    # Server routes: Panta proxy (keeps API key private), token metadata
+components/                 # Navbar, wallet provider, conviction panel
+lib/
+├── panta/                  # Panta server client + market normalizer
+├── meteora/                # Meteora DBC config + transaction builder
+├── rpc/                    # RPC Fast endpoint + cluster detection
+└── conviction/             # Scoring + launch store
+types/                      # Shared TypeScript types
 ```
 
 ---

@@ -1,16 +1,18 @@
 /**
- * Single switch for the whole app:  NEXT_PUBLIC_SOLANA_NETWORK=mainnet | devnet
+ * Single switch for the whole app:  NEXT_PUBLIC_SOLANA_NETWORK=mainnet | devnet | testnet
  *
- * Unset / unrecognised => "devnet" on purpose: the safe default never spends
- * real funds. (Meteora's DBC test environment is devnet; Solana's "testnet"
- * cluster is not used, so "testnet" is treated as devnet.)
+ * Unset / unrecognised => "devnet" on purpose: the safe default never spends real funds.
+ * NOTE: Meteora's DBC program is confirmed on mainnet + devnet; whether it exists on Solana
+ * "testnet" is checked live on the /status page (it looks up the program account).
+ * NOTE: this value is inlined at BUILD time (NEXT_PUBLIC_): on Vercel set it before deploying
+ * and redeploy after changing it.
  */
-export type Network = "mainnet" | "devnet";
+export type Network = "mainnet" | "devnet" | "testnet";
 
 const raw = (process.env.NEXT_PUBLIC_SOLANA_NETWORK || "").trim().toLowerCase();
 
 export const NETWORK: Network =
-  raw === "mainnet" || raw === "mainnet-beta" ? "mainnet" : "devnet";
+  raw === "mainnet" || raw === "mainnet-beta" ? "mainnet" : raw === "testnet" ? "testnet" : "devnet";
 export const NETWORK_WAS_SET = raw !== "";
 export const IS_MAINNET = NETWORK === "mainnet";
 
@@ -18,12 +20,13 @@ export const IS_MAINNET = NETWORK === "mainnet";
 export const GENESIS_HASH: Record<Network, string> = {
   mainnet: "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d",
   devnet: "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  testnet: "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY",
 };
 
-export function clusterFromGenesis(hash: string): Network | "testnet" | "unknown" {
-  if (hash === GENESIS_HASH.mainnet) return "mainnet";
-  if (hash === GENESIS_HASH.devnet) return "devnet";
-  if (hash === "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY") return "testnet";
+export function clusterFromGenesis(hash: string): Network | "unknown" {
+  for (const n of ["mainnet", "devnet", "testnet"] as const) {
+    if (hash === GENESIS_HASH[n]) return n;
+  }
   return "unknown";
 }
 
@@ -32,7 +35,7 @@ export const PANTA_WRITES_ENABLED = IS_MAINNET;
 
 export const SOL_DECIMALS = 9;
 
-const suffix = IS_MAINNET ? "" : "?cluster=devnet";
+const suffix = IS_MAINNET ? "" : `?cluster=${NETWORK}`;
 export const txUrl = (sig: string) => `https://solscan.io/tx/${sig}${suffix}`;
 export const addressUrl = (addr: string) => `https://solscan.io/account/${addr}${suffix}`;
 
