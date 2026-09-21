@@ -22,7 +22,7 @@ RPC Fast (all Solana reads/writes)
 3. PredictLaunch fetches market stats (volume, probability, traders).
 4. Conviction Engine calculates a score (0–100).
 5. Score determines unlocked benefits.
-6. When real Meteora integration is complete, the score influences curve parameters at pool creation time.
+6. At launch, the score sets the pool's base trading fee (200 / 150 / 100 / 50 bps for Low / Medium / High / Very High) inside the Meteora DBC config (`lib/conviction/score.ts` -> `lib/meteora/client.ts`).
 
 ## Conviction Scoring (MVP)
 
@@ -40,9 +40,9 @@ RPC Fast (all Solana reads/writes)
 
 ## Data Storage (Current)
 
-- In-memory store (`src/lib/conviction/store.ts`) for launches
-- Easily replaceable with Postgres, Redis, or on-chain accounts later
+- Browser `localStorage` (`lib/conviction/store.ts`) for launch records (survives reloads, per-browser only)
+- Replace with Postgres/Supabase or on-chain accounts to share launches between users
 
 ## RPC Strategy
 
-All Solana `Connection` instances use the RPC Fast endpoint defined in `NEXT_PUBLIC_RPC_ENDPOINT`. This satisfies the RPC Fast side track requirement.
+The wallet `ConnectionProvider` and every helper resolve the endpoint through `lib/rpc/connection.ts` (`getRpcEndpoint()`), i.e. `NEXT_PUBLIC_RPC_ENDPOINT`. Tip: restrict that key by domain in the RPC Fast dashboard, since `NEXT_PUBLIC_` values ship to the browser. This satisfies the RPC Fast side track requirement.

@@ -16,16 +16,16 @@ export default function HomePage() {
 
         <div className="flex flex-wrap gap-4 mt-8">
           <Link
-            href="/create"
+            href="/markets"
             className="px-6 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 font-medium transition"
           >
-            Create Market
+            Explore Markets
           </Link>
           <Link
-            href="/markets"
+            href="/launch"
             className="px-6 py-3 rounded-lg border border-zinc-700 hover:border-zinc-500 font-medium transition"
           >
-            Explore Markets
+            Launch a Token
           </Link>
         </div>
       </section>

@@ -1,53 +1,122 @@
-const PANTA_BASE_URL = process.env.PANTA_API_BASE_URL || "https://live-api.panta.market/api/v1";
-const API_KEY = process.env.PANTA_API_KEY;
+import type { CreateQuoteInput } from "@/types/panta";
 
-async function pantaFetch(path: string, options: RequestInit = {}) {
-  if (!API_KEY) {
-    throw new Error("Panta API key is missing");
+const PANTA_BASE_URL =
+  process.env.PANTA_API_BASE_URL || "https://live-api.panta.market/api/v1";
+
+export class PantaError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public body?: unknown
+  ) {
+    super(message);
   }
+}
 
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    "X-Api-Key": API_KEY,
-    ...options.headers,
-  };
+/**
+ * NOTE: Panta requires trailing slashes on every path ("/markets/", not "/markets").
+ * All calls run server-side only so the API key never reaches the browser.
+ */
+async function pantaFetch<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+  const apiKey = process.env.PANTA_API_KEY;
+  if (!apiKey) {
+    throw new PantaError("PANTA_API_KEY is not set (add it to .env.local / Vercel env vars)", 500);
+  }
 
   const res = await fetch(`${PANTA_BASE_URL}${path}`, {
-    ...options,
-    headers,
+    ...init,
+    cache: "no-store",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Api-Key": apiKey,
+      ...init.headers,
+    },
   });
 
-  if (!res.ok) {
-    const errorText = await res.text();
-    throw new Error(`Panta API error (${res.status}): ${errorText}`);
+  const text = await res.text();
+  let body: unknown = text;
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    /* keep raw text */
   }
 
-  return res.json();
+  if (!res.ok) {
+    // Surface Panta's real error body -- it names the exact invalid field.
+    throw new PantaError(
+      `Panta ${init.method || "GET"} ${path} failed (${res.status}): ${
+        typeof body === "string" ? body : JSON.stringify(body)
+      }`,
+      res.status,
+      body
+    );
+  }
+  return body as T;
+}
+
+const HOUR = 3600;
+
+/** Fallback image. Panta refuses most public image hosts at *build* time, so
+ *  set PANTA_DEFAULT_IMAGE_URL to a URL you have verified end-to-end. */
+function defaultImageUrl(): string {
+  return (
+    process.env.PANTA_DEFAULT_IMAGE_URL ||
+    "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png"
+  );
 }
 
 export const pantaServer = {
-  async listMarkets(params?: { limit?: number }) {
-    const query = new URLSearchParams();
-    if (params?.limit) query.set("limit", String(params.limit));
-    return pantaFetch(`/markets/?${query.toString()}`);
+  listMarkets(params?: { limit?: number; category?: string }) {
+    const q = new URLSearchParams();
+    if (params?.limit) q.set("limit", String(params.limit));
+    if (params?.category) q.set("category", params.category);
+    const qs = q.toString();
+    return pantaFetch(`/markets/${qs ? `?${qs}` : ""}`);
   },
 
-  async quoteCreateMarket(payload: any) {
+  getMarket(marketId: string) {
+    return pantaFetch(`/markets/${encodeURIComponent(marketId)}/`);
+  },
+
+  /** Step 1: quote. Response includes `createId` and the USDC fee (`paymentUsdc`). */
+  quoteCreateMarket(input: CreateQuoteInput) {
+    const now = Math.floor(Date.now() / 1000);
+    const startTime = now + HOUR + 300; // API requires >= now + 1h
+    const endTime = startTime + 3 * 24 * HOUR;
+    const resolutionTime = endTime + 2 * HOUR;
+
     return pantaFetch("/markets/create/quote/", {
       method: "POST",
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        wallet: input.wallet,
+        question: input.question,
+        title: input.question.slice(0, 100),
+        description: input.description || "Created via PredictLaunch",
+        resolutionRule:
+          "Resolved based on publicly available information from official sources and reputable media.",
+        sourcesOfTruth: ["https://www.coingecko.com", "https://solscan.io"],
+        category: input.category,
+        startTime,
+        endTime,
+        resolutionTime,
+        marketType: "standard",
+        imageUrl: input.imageUrl || defaultImageUrl(),
+        region: "Global",
+      }),
     });
   },
 
-  async buildCreateMarket(quoteId: string) {
+  /** Step 2: build. Panta's build endpoint takes `createId` (was wrongly sent as `quoteId`). */
+  buildCreateMarket(createId: string) {
     return pantaFetch("/markets/create/build/", {
       method: "POST",
-      body: JSON.stringify({ quoteId }),
+      body: JSON.stringify({ createId }),
     });
   },
 
-  async registerMarket(payload: { quoteId: string; signature: string }) {
-    return pantaFetch("/markets/register/", {
+  /** Step 3: register the broadcast signature. Path is /markets/create/register/. */
+  registerMarket(payload: { createId: string; signature: string }) {
+    return pantaFetch("/markets/create/register/", {
       method: "POST",
       body: JSON.stringify(payload),
     });

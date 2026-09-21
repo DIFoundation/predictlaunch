@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pantaServer } from "@/lib/panta/server";
+import { errorResponse } from "@/lib/panta/route-helpers";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const result = await pantaServer.registerMarket(body);
-    return NextResponse.json(result);
-  } catch (error: any) {
-    return NextResponse.json(
-      { error: error.message || "Failed to register market" },
-      { status: 500 }
-    );
+    const { createId, signature } = (await req.json()) ?? {};
+    if (typeof createId !== "string" || typeof signature !== "string" || !createId || !signature) {
+      return NextResponse.json(
+        { error: "createId and signature are required" },
+        { status: 400 }
+      );
+    }
+    return NextResponse.json(await pantaServer.registerMarket({ createId, signature }));
+  } catch (err) {
+    return errorResponse(err, "Failed to register market");
   }
 }

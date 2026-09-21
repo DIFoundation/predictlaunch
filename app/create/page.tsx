@@ -5,6 +5,34 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { Transaction, VersionedTransaction } from "@solana/web3.js";
 import { useRouter } from "next/navigation";
 
+type Quote = Record<string, unknown> & { createId?: string; paymentUsdc?: number | string };
+
+function base64ToBytes(b64: string): Uint8Array {
+  const bin = atob(b64);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
+/** Panta returns a base64 serialized tx; the field name isn't documented in our notes, so be tolerant. */
+function extractTx(build: Record<string, unknown>): string | null {
+  for (const k of ["transaction", "tx", "serializedTransaction", "txBase64", "transactionBase64"]) {
+    if (typeof build[k] === "string" && (build[k] as string).length > 100) return build[k] as string;
+  }
+  return null;
+}
+
+async function postJson<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data as T;
+}
+
 export default function CreateMarketPage() {
   const { publicKey, signTransaction } = useWallet();
   const { connection } = useConnection();
@@ -13,172 +41,135 @@ export default function CreateMarketPage() {
   const [question, setQuestion] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("crypto");
-  const [loading, setLoading] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
+
+  const [quote, setQuote] = useState<Quote | null>(null);
+  const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleCreateMarket(e: React.FormEvent) {
+  // Step 1: ask Panta for a quote. Nothing is signed or spent yet.
+  async function handleQuote(e: React.FormEvent) {
     e.preventDefault();
+    if (!publicKey) return setError("Please connect your wallet first");
+    if (question.trim().length < 10) return setError("Question must be at least 10 characters");
 
-    if (!publicKey || !signTransaction) {
-      setError("Please connect your wallet first");
-      return;
-    }
-
-    if (!question.trim()) {
-      setError("Question is required");
-      return;
-    }
-
-    setLoading(true);
+    setBusy(true);
     setError(null);
-    setStatus("Quoting market...");
-
+    setQuote(null);
+    setStatus("Requesting quote from Panta...");
     try {
-      // Timestamps (Unix seconds)
-      const now = Math.floor(Date.now() / 1000);
-      const startTime = now + 3700;          // at least 1 hour from now
-      const endTime = startTime + 3 * 24 * 3600; // 3 days later
-      const resolutionTime = endTime + 7200;     // 2 hours after end
-
-      const payload = {
+      const q = await postJson<Quote>("/api/panta/quote", {
         wallet: publicKey.toBase58(),
-        question: question.trim(),
-        title: question.trim().slice(0, 100),
-        description: description.trim() || "Created via PredictLaunch",
-        resolutionRule: "Resolved based on publicly available information from official sources and reputable media.",
-        sourcesOfTruth: [
-          "https://www.coingecko.com",
-          "https://www.google.com"
-        ],
-        category: category,
-        startTime,
-        endTime,
-        resolutionTime,
-        marketType: "standard",
-        imageUrl: "https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/So11111111111111111111111111111111111111112/logo.png",
-        region: "Global",
-      };
-
-      console.log("Sending quote payload:", payload);
-
-      // 1. Quote
-      const quoteRes = await fetch("/api/panta/quote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        question,
+        description,
+        category,
+        imageUrl: imageUrl.trim() || undefined,
       });
-
-      const quote = await quoteRes.json();
-      if (!quoteRes.ok) throw new Error(quote.error || JSON.stringify(quote));
-
-      const createId = quote.createId;
-      if (!createId) throw new Error("No createId returned from quote");
-
-      setStatus("Building transaction...");
-
-      // 2. Build
-      const buildRes = await fetch("/api/panta/build", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ createId }),
-      });
-
-      const buildResult = await buildRes.json();
-      if (!buildRes.ok) throw new Error(buildResult.error || "Build failed");
-
-      const serializedTx = buildResult.transaction;
-
-      if (!serializedTx) {
-        throw new Error("No transaction returned from build. Full response: " + JSON.stringify(buildResult));
-      }
-
-      setStatus("Please approve the transaction in your wallet...");
-
-      // 3. Sign (support both legacy and versioned)
-      let signedTx;
-      try {
-        const tx = VersionedTransaction.deserialize(Buffer.from(serializedTx, "base64"));
-        signedTx = await signTransaction(tx as any);
-      } catch {
-        const tx = Transaction.from(Buffer.from(serializedTx, "base64"));
-        signedTx = await signTransaction(tx);
-      }
-
-      setStatus("Broadcasting transaction...");
-
-      // 4. Broadcast
-      const signature = await connection.sendRawTransaction(
-        (signedTx as any).serialize()
-      );
-      await connection.confirmTransaction(signature, "confirmed");
-
-      setStatus("Registering market...");
-
-      // 5. Register
-      const registerRes = await fetch("/api/panta/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ createId, signature }),
-      });
-
-      const registerResult = await registerRes.json();
-      if (!registerRes.ok) {
-        throw new Error(registerResult.error || "Register failed");
-      }
-
-      setStatus("Market created successfully!");
-      setTimeout(() => router.push("/markets"), 1500);
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Failed to create market");
+      if (!q.createId) throw new Error("No createId in quote response: " + JSON.stringify(q));
+      setQuote(q);
+      setStatus(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Quote failed");
       setStatus(null);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
+
+  // Step 2: user reviewed the fee -> build, sign, broadcast, register.
+  async function handleConfirm() {
+    if (!quote?.createId || !publicKey || !signTransaction) return;
+    const createId = quote.createId;
+
+    setBusy(true);
+    setError(null);
+    try {
+      setStatus("Building transaction...");
+      const build = await postJson<Record<string, unknown>>("/api/panta/build", { createId });
+      const b64 = extractTx(build);
+      if (!b64) {
+        throw new Error("Build response had no transaction. Keys: " + Object.keys(build).join(", "));
+      }
+
+      // Deserialize FIRST, sign second. (The old code wrapped both in one try/catch, so a
+      // wallet "User rejected" error fell through to the legacy path and got masked.)
+      const bytes = base64ToBytes(b64);
+      let tx: VersionedTransaction | Transaction;
+      try {
+        tx = VersionedTransaction.deserialize(bytes);
+      } catch {
+        tx = Transaction.from(bytes);
+      }
+
+      setStatus("Approve the transaction in your wallet...");
+      const signed = await signTransaction(tx);
+
+      setStatus("Broadcasting...");
+      const signature = await connection.sendRawTransaction(signed.serialize());
+      const latest = await connection.getLatestBlockhash("confirmed");
+      await connection.confirmTransaction({ signature, ...latest }, "confirmed");
+
+      setStatus("Registering market with Panta...");
+      await postJson("/api/panta/register", { createId, signature });
+
+      setStatus("Market created!");
+      setTimeout(() => router.push("/markets"), 1500);
+    } catch (err) {
+      console.error(err);
+      setError(err instanceof Error ? err.message : "Failed to create market");
+      setStatus(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const inputCls =
+    "w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500";
 
   return (
     <div className="max-w-xl mx-auto space-y-8">
       <div>
         <h1 className="text-3xl font-bold">Create Market</h1>
         <p className="text-zinc-400 mt-2">
-          Create a prediction market powered by Panta
+          Create a prediction market · <span className="text-zinc-300">Powered by Panta</span>
         </p>
       </div>
 
-      <form onSubmit={handleCreateMarket} className="space-y-6">
+      <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm">
+        Creating a market on Panta costs real USDC (platform fee + seed liquidity). You will see the
+        exact fee from Panta and must confirm before anything is signed.
+      </div>
+
+      <form onSubmit={handleQuote} className="space-y-6">
         <div>
           <label className="block text-sm font-medium mb-2">Question *</label>
           <input
-            type="text"
+            className={inputCls}
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
             placeholder="Will $SOL reach $300 before December 2026?"
-            className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500"
-            disabled={loading}
+            disabled={busy || !!quote}
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium mb-2">Description</label>
           <textarea
+            className={inputCls}
+            rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Add more context..."
-            rows={3}
-            className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500"
-            disabled={loading}
+            disabled={busy || !!quote}
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium mb-2">Category</label>
           <select
+            className={inputCls}
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500"
-            disabled={loading}
+            disabled={busy || !!quote}
           >
             <option value="crypto">Crypto</option>
             <option value="sports">Sports</option>
@@ -188,27 +179,77 @@ export default function CreateMarketPage() {
             <option value="other">Other</option>
           </select>
         </div>
+        <div>
+          <label className="block text-sm font-medium mb-2">Image URL (optional)</label>
+          <input
+            className={inputCls}
+            value={imageUrl}
+            onChange={(e) => setImageUrl(e.target.value)}
+            placeholder="Public https image (leave blank for the default)"
+            disabled={busy || !!quote}
+          />
+          <p className="text-xs text-zinc-500 mt-1.5">
+            Panta rejects many image hosts at build time. If build fails with a generic error, try a
+            different image URL.
+          </p>
+        </div>
 
-        {error && (
-          <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm whitespace-pre-wrap">
-            {error}
-          </div>
+        {!quote && (
+          <button
+            type="submit"
+            disabled={busy || !publicKey}
+            className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+          >
+            {busy ? "Working..." : publicKey ? "Get Quote" : "Connect Wallet First"}
+          </button>
         )}
-
-        {status && (
-          <div className="p-4 rounded-lg bg-violet-500/10 border border-violet-500/30 text-violet-300 text-sm">
-            {status}
-          </div>
-        )}
-
-        <button
-          type="submit"
-          disabled={loading || !publicKey}
-          className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
-        >
-          {loading ? "Creating..." : publicKey ? "Create Market" : "Connect Wallet First"}
-        </button>
       </form>
+
+      {quote && (
+        <div className="p-5 rounded-xl border border-zinc-700 bg-zinc-900/60 space-y-4">
+          <div>
+            <p className="text-sm text-zinc-400">Panta quote</p>
+            <p className="text-2xl font-bold mt-1">
+              {quote.paymentUsdc !== undefined ? `${quote.paymentUsdc} USDC` : "See details below"}
+            </p>
+          </div>
+          <details className="text-xs text-zinc-500">
+            <summary className="cursor-pointer">Raw quote response</summary>
+            <pre className="mt-2 overflow-x-auto">{JSON.stringify(quote, null, 2)}</pre>
+          </details>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={handleConfirm}
+              disabled={busy}
+              className="py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 font-medium transition"
+            >
+              {busy ? "Working..." : "Confirm & Sign"}
+            </button>
+            <button
+              onClick={() => {
+                setQuote(null);
+                setStatus(null);
+                setError(null);
+              }}
+              disabled={busy}
+              className="py-3 rounded-lg border border-zinc-700 hover:border-zinc-500 disabled:opacity-50 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {error && (
+        <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm whitespace-pre-wrap break-words">
+          {error}
+        </div>
+      )}
+      {status && (
+        <div className="p-4 rounded-lg bg-violet-500/10 border border-violet-500/30 text-violet-300 text-sm">
+          {status}
+        </div>
+      )}
     </div>
   );
 }

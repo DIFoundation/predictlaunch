@@ -1,52 +1,44 @@
-enum Phase {
-    primary,
-    secondary,
-    resolved,
-    cancelled,
+export interface PantaMarketRaw {
+  marketId: string;
+  category?: string | null;
+  title?: string | null;
+  description?: string | null;
+  images?: string[] | null;
+  phase?: string | number | null;
+  marketType?: string | number | null;
+  startTime?: number | string | null;
+  endTime?: number | string | null;
+  resolutionTime?: number | string | null;
+  region?: string | null;
+  resolved?: boolean;
+  status?: string | null;
+  volumeUsdc?: string | number | null;
+  yesPrice?: string | number | null;
+  noPrice?: string | number | null;
+  primaryYesPrice?: string | number | null;
+  primaryNoPrice?: string | number | null;
+  secondaryYesPrice?: string | number | null;
+  secondaryNoPrice?: string | number | null;
 }
-
-enum MarketType { standard, breaking }
 
 export interface PantaMarket {
   marketId: string;
-  category: string;
   title: string;
+  textQuality: "full" | "description-only" | "none";
   description?: string;
-  images: string[];
-  phase: Phase;
-  marketType: MarketType;
-  startTime: number;
-  endTime: number;
-  resolutionTime: number;
-  region: string;
-  resolved: boolean;
-  status: string;
-  volumeUsdc: string;
-  campaignId: string | null;
-  createdByPartner: boolean;
-  yesPrice: string | null;
-  noPrice: string | null;
-  primaryYesPrice: string | null;
-  primaryNoPrice: string | null;
-  secondaryYesPrice: string | null;
-  secondaryNoPrice: string | null;
+  category: string;
+  phase: string;
+  volumeUsdc: number;
+  yesPrice: number | null; // 0..1
+  noPrice: number | null; // 0..1
+  imageUrl?: string;
+  endTime?: number; // unix seconds
 }
 
-export interface PantaPosition {
-  marketId: string;
-  category: string | null;
-  side: string;
-  shares: string;
-  phase: Phase;
-  claimable: boolean
-  claimed: boolean;
-  outcome?: string | null;
-}
-
-export interface CreateMarketParams {
+export interface CreateQuoteInput {
+  wallet: string;
   question: string;
   description?: string;
+  category: string;
   imageUrl?: string;
-  endTime?: string;
-  category?: string;
 }

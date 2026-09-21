@@ -7,20 +7,13 @@ import {
 } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
-import { clusterApiUrl } from "@solana/web3.js";
+import { getRpcEndpoint } from "@/lib/rpc/connection";
 
 // Default styles for the wallet modal
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  // You can later replace this with your RPC Fast endpoint
-  const endpoint = useMemo(() => {
-    const envEndpoint = process.env.NEXT_PUBLIC_RPC_ENDPOINT;
-    if (envEndpoint && (envEndpoint.startsWith("http://") || envEndpoint.startsWith("https://"))) {
-      return envEndpoint;
-    }
-    return clusterApiUrl("mainnet-beta");
-  }, []);
+  const endpoint = useMemo(() => getRpcEndpoint(), []);
 
   const wallets = useMemo(
     () => [

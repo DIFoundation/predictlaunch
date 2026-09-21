@@ -1,100 +1,190 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useWallet } from "@solana/wallet-adapter-react";
+import { Suspense, useEffect, useState } from "react";
+import { useWallet, useConnection } from "@solana/wallet-adapter-react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { calculateConviction } from "@/lib/conviction/score";
+import { calculateConviction, feeBpsForScore } from "@/lib/conviction/score";
 import { launchStore } from "@/lib/conviction/store";
-import { LinkedMarket, LaunchRecord } from "@/types/conviction";
+import { ConvictionPanel } from "@/components/conviction/ConvictionPanel";
+import { detectCluster } from "@/lib/rpc/connection";
+import { prepareLaunch, simulateLaunch, sendLaunch } from "@/lib/meteora/client";
+import type { LinkedMarket, LaunchRecord } from "@/types/conviction";
+import type { PantaMarket } from "@/types/panta";
 
-export default function LaunchTokenPage() {
-  const { publicKey } = useWallet();
+const DEMO_MARKET: LinkedMarket = {
+  marketId: "demo",
+  question: "Demo market (illustrative numbers)",
+  volumeUsdc: 1850,
+  yesPrice: 0.68,
+};
+
+type Fetched = { id: string; market?: LinkedMarket; error?: string };
+
+function LaunchForm() {
+  const { publicKey, signTransaction } = useWallet();
+  const { connection } = useConnection();
+  const searchParams = useSearchParams();
 
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [description, setDescription] = useState("");
-  const [linkedMarketId, setLinkedMarketId] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [linkedMarketId, setLinkedMarketId] = useState(searchParams.get("market") ?? "");
+  const [useDemo, setUseDemo] = useState(false);
+
+  const [fetched, setFetched] = useState<Fetched | null>(null);
+  const [cluster, setCluster] = useState<string | null>(null);
+
+  const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ id: string; score: number } | null>(null);
+  const [result, setResult] = useState<LaunchRecord | null>(null);
 
-  // Mock linked market data for the MVP (later we fetch real data from Panta)
-  const [linkedMarket, setLinkedMarket] = useState<LinkedMarket | null>(null);
-  const [conviction, setConviction] = useState<ReturnType<typeof calculateConviction> | null>(null);
-
-  // When user types a market ID, simulate loading market data
+  // Which network is the RPC endpoint really on? (devnet vs mainnet matters: real SOL.)
   useEffect(() => {
-    if (!linkedMarketId.trim()) {
-      setLinkedMarket(null);
-      setConviction(null);
-      return;
-    }
-
-    // Mock data – in real version we would call Panta
-    const mock: LinkedMarket = {
-      marketId: linkedMarketId.trim(),
-      question: "Will this token reach significant traction?",
-      volumeUsdc: 1850,
-      yesPrice: 0.68,
-      uniqueTraders: 42,
-      status: "open",
+    let alive = true;
+    detectCluster(connection).then((c) => alive && setCluster(c));
+    return () => {
+      alive = false;
     };
+  }, [connection]);
 
-    setLinkedMarket(mock);
-    setConviction(calculateConviction([mock]));
-  }, [linkedMarketId]);
+  // Load the REAL linked market from Panta (debounced). No synchronous setState in the effect body.
+  const marketId = linkedMarketId.trim();
+  useEffect(() => {
+    if (!marketId || useDemo) return;
+    const ctrl = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/panta/markets/${encodeURIComponent(marketId)}`, {
+          signal: ctrl.signal,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `Lookup failed (${res.status})`);
+        const m = data as PantaMarket;
+        setFetched({
+          id: marketId,
+          market: {
+            marketId: m.marketId,
+            question: m.title,
+            volumeUsdc: m.volumeUsdc,
+            yesPrice: m.yesPrice,
+          },
+        });
+      } catch (e) {
+        if (ctrl.signal.aborted) return;
+        setFetched({ id: marketId, error: e instanceof Error ? e.message : "Lookup failed" });
+      }
+    }, 400);
+    return () => {
+      ctrl.abort();
+      clearTimeout(timer);
+    };
+  }, [marketId, useDemo]);
 
-  async function handleLaunch(e: React.FormEvent) {
-    e.preventDefault();
+  const loadingMarket = !useDemo && !!marketId && fetched?.id !== marketId;
+  const linkedMarket: LinkedMarket | null = useDemo
+    ? DEMO_MARKET
+    : marketId && fetched?.id === marketId
+      ? (fetched.market ?? null)
+      : null;
+  const lookupError = !useDemo && marketId && fetched?.id === marketId ? fetched.error : undefined;
 
-    if (!publicKey) {
-      setError("Please connect your wallet first");
+  const conviction = linkedMarket ? calculateConviction([linkedMarket]) : null;
+  const score = conviction?.score ?? 0;
+  const feeBps = feeBpsForScore(score);
+
+  function validate(): string | null {
+    if (!publicKey) return "Please connect your wallet first";
+    if (!name.trim() || !symbol.trim()) return "Name and symbol are required";
+    if (name.trim().length > 32) return "Token name must be 32 characters or fewer";
+    if (symbol.trim().length > 10) return "Symbol must be 10 characters or fewer";
+    return null;
+  }
+
+  function buildRecord(extra: Partial<LaunchRecord>): LaunchRecord {
+    return {
+      id: `launch_${Date.now()}`,
+      name: name.trim(),
+      symbol: symbol.trim().toUpperCase(),
+      description: description.trim() || undefined,
+      linkedMarketIds: marketId && !useDemo ? [marketId] : [],
+      convictionScore: score,
+      feeBps,
+      mode: "record",
+      createdAt: new Date().toISOString(),
+      creator: publicKey!.toBase58(),
+      ...extra,
+    };
+  }
+
+  function saveRecordOnly() {
+    const v = validate();
+    if (v) return setError(v);
+    setError(null);
+    const rec = buildRecord({ mode: "record" });
+    launchStore.add(rec);
+    setResult(rec);
+    setStatus("Launch record saved (no on-chain pool created).");
+  }
+
+  async function launchOnChain() {
+    const v = validate();
+    if (v) return setError(v);
+    if (!signTransaction || !publicKey) return setError("Wallet cannot sign transactions");
+
+    if (
+      cluster === "mainnet-beta" &&
+      !window.confirm(
+        "Your RPC is on MAINNET. This creates a real Meteora pool and spends real SOL (rent + fees). Continue?"
+      )
+    ) {
       return;
     }
 
-    if (!name.trim() || !symbol.trim()) {
-      setError("Name and symbol are required");
-      return;
-    }
-
-    setLoading(true);
+    setBusy(true);
     setError(null);
     setResult(null);
-    setStatus("Creating launch record and calculating conviction...");
-
     try {
-      // Simulate a short delay
-      await new Promise((r) => setTimeout(r, 800));
+      setStatus("Building Meteora config + pool transaction...");
+      const meta = new URLSearchParams({ name: name.trim(), symbol: symbol.trim().toUpperCase() });
+      if (description.trim()) meta.set("description", description.trim());
+      let uri = `${window.location.origin}/api/metadata?${meta.toString()}`;
+      if (uri.length > 200) {
+        meta.delete("description"); // on-chain URI limit is 200 chars
+        uri = `${window.location.origin}/api/metadata?${meta.toString()}`;
+      }
 
-      const scoreResult = conviction || calculateConviction([]);
-
-      const newLaunch: LaunchRecord = {
-        id: `launch_${Date.now()}`,
+      const prepared = await prepareLaunch(connection, {
         name: name.trim(),
         symbol: symbol.trim().toUpperCase(),
-        description: description.trim() || undefined,
-        linkedMarketIds: linkedMarketId.trim() ? [linkedMarketId.trim()] : [],
-        convictionScore: scoreResult.score,
-        createdAt: new Date().toISOString(),
-        creator: publicKey.toBase58(),
-      };
-
-      // Save to our simple store
-      launchStore.add(newLaunch);
-
-      setStatus("Launch created successfully (MVP mode)");
-      setResult({
-        id: newLaunch.id,
-        score: scoreResult.score,
+        uri,
+        feeBps,
+        payer: publicKey,
       });
-    } catch (err: any) {
-      setError(err.message || "Failed to create launch");
+
+      setStatus("Simulating transaction on the RPC...");
+      await simulateLaunch(connection, prepared.tx);
+
+      setStatus("Simulation passed. Approve the transaction in your wallet...");
+      const signature = await sendLaunch(connection, prepared, signTransaction);
+
+      const rec = buildRecord({ mode: "onchain", mint: prepared.baseMint, signature });
+      launchStore.add(rec);
+      setResult(rec);
+      setStatus("Token + bonding curve pool created on-chain!");
+    } catch (e) {
+      console.error(e);
+      setError(e instanceof Error ? e.message : "Launch failed");
       setStatus(null);
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
+
+  const explorerSuffix = cluster && cluster !== "mainnet-beta" && cluster !== "unknown" ? `?cluster=${cluster}` : "";
+  const inputCls =
+    "w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500";
 
   return (
     <div className="max-w-xl mx-auto space-y-8">
@@ -104,178 +194,104 @@ export default function LaunchTokenPage() {
         </Link>
         <h1 className="text-3xl font-bold mt-4">Launch Token</h1>
         <p className="text-zinc-400 mt-2">
-          Create a launch and optionally link a prediction market for conviction
+          Link a prediction market. Higher conviction unlocks a lower trading fee on your Meteora
+          bonding curve.
         </p>
+        {cluster && (
+          <p
+            className={`inline-block mt-3 text-xs px-2.5 py-1 rounded-full border ${
+              cluster === "mainnet-beta"
+                ? "border-amber-500/40 bg-amber-500/10 text-amber-300"
+                : "border-zinc-700 bg-zinc-900 text-zinc-400"
+            }`}
+          >
+            Network: {cluster}
+            {cluster === "mainnet-beta" ? " — real SOL" : ""}
+          </p>
+        )}
       </div>
 
-      <form onSubmit={handleLaunch} className="space-y-6">
-        {/* Token details */}
+      <div className="space-y-6">
         <div>
           <label className="block text-sm font-medium mb-2">Token Name *</label>
           <input
-            type="text"
+            className={inputCls}
             value={name}
+            maxLength={32}
             onChange={(e) => setName(e.target.value)}
             placeholder="PredictLaunch Token"
-            className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500"
-            disabled={loading}
+            disabled={busy}
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium mb-2">Symbol *</label>
           <input
-            type="text"
+            className={inputCls}
             value={symbol}
+            maxLength={10}
             onChange={(e) => setSymbol(e.target.value.toUpperCase())}
             placeholder="PLT"
-            maxLength={10}
-            className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500"
-            disabled={loading}
+            disabled={busy}
           />
         </div>
-
         <div>
           <label className="block text-sm font-medium mb-2">Description</label>
           <textarea
+            className={inputCls}
+            rows={3}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="What is this token about?"
-            rows={3}
-            className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500"
-            disabled={loading}
+            disabled={busy}
           />
         </div>
 
-        {/* Link a market */}
         <div>
-          <label className="block text-sm font-medium mb-2">
-            Linked Market ID (optional)
-          </label>
+          <label className="block text-sm font-medium mb-2">Linked Market ID (optional)</label>
           <input
-            type="text"
+            className={inputCls}
             value={linkedMarketId}
             onChange={(e) => setLinkedMarketId(e.target.value)}
-            placeholder="Paste a Panta market ID"
-            className="w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500"
-            disabled={loading}
+            placeholder="Paste a Panta market ID (or pick one from Markets)"
+            disabled={busy || useDemo}
           />
-          <p className="text-xs text-zinc-500 mt-1.5">
-            Linking a market enables the conviction score and unlocks better launch parameters.
-          </p>
+          <div className="flex items-center justify-between mt-2 text-xs text-zinc-500">
+            <Link href="/markets" className="hover:text-zinc-300 underline underline-offset-2">
+              Browse markets →
+            </Link>
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={useDemo}
+                onChange={(e) => setUseDemo(e.target.checked)}
+                disabled={busy}
+              />
+              Use demo market data
+            </label>
+          </div>
+          {loadingMarket && <p className="text-xs text-zinc-500 mt-2">Loading market from Panta...</p>}
+          {lookupError && (
+            <p className="text-xs text-red-400 mt-2 whitespace-pre-wrap break-words">{lookupError}</p>
+          )}
+          {linkedMarket && !useDemo && (
+            <p className="text-xs text-zinc-400 mt-2 line-clamp-2">Market: {linkedMarket.question}</p>
+          )}
         </div>
 
-        {/* Live Conviction Panel */}
-        {conviction && (
-          <div className="p-5 rounded-xl border border-zinc-700 bg-zinc-900/60 space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="font-medium">Conviction Score</h3>
-              <span
-                className={`text-sm font-semibold px-2.5 py-1 rounded-full ${conviction.level === "Very High"
-                    ? "bg-emerald-500/20 text-emerald-400"
-                    : conviction.level === "High"
-                      ? "bg-violet-500/20 text-violet-400"
-                      : conviction.level === "Medium"
-                        ? "bg-amber-500/20 text-amber-400"
-                        : "bg-zinc-700 text-zinc-400"
-                  }`}
-              >
-                {conviction.level} · {conviction.score}/100
-              </span>
-            </div>
-
-            <ul className="text-sm text-zinc-400 space-y-1">
-              {conviction.reasons.map((r, i) => (
-                <li key={i}>• {r}</li>
-              ))}
-            </ul>
-
-            {/* Live Conviction Panel – improved */}
-            {conviction && (
-              <div className="rounded-xl border border-zinc-700 overflow-hidden">
-                {/* Header */}
-                <div className="px-5 py-4 bg-zinc-900/80 border-b border-zinc-800 flex items-center justify-between">
-                  <div>
-                    <h3 className="font-medium">Conviction Score</h3>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      Based on linked prediction market activity
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold tracking-tight">
-                      {conviction.score}
-                      <span className="text-base text-zinc-500 font-normal">/100</span>
-                    </div>
-                    <div
-                      className={`text-xs font-medium mt-0.5 ${conviction.level === "Very High"
-                          ? "text-emerald-400"
-                          : conviction.level === "High"
-                            ? "text-violet-400"
-                            : conviction.level === "Medium"
-                              ? "text-amber-400"
-                              : "text-zinc-400"
-                        }`}
-                    >
-                      {conviction.level}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Body */}
-                <div className="p-5 space-y-4 bg-zinc-900/40">
-                  {/* Progress bar */}
-                  <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${conviction.score >= 75
-                          ? "bg-emerald-500"
-                          : conviction.score >= 55
-                            ? "bg-violet-500"
-                            : conviction.score >= 30
-                              ? "bg-amber-500"
-                              : "bg-zinc-600"
-                        }`}
-                      style={{ width: `${conviction.score}%` }}
-                    />
-                  </div>
-
-                  {/* Reasons */}
-                  <ul className="text-sm text-zinc-400 space-y-1.5">
-                    {conviction.reasons.map((r, i) => (
-                      <li key={i} className="flex gap-2">
-                        <span className="text-zinc-600">•</span>
-                        <span>{r}</span>
-                      </li>
-                    ))}
-                  </ul>
-
-                  {/* Benefits */}
-                  {conviction.unlockedBenefits.length > 0 && (
-                    <div className="pt-3 border-t border-zinc-800">
-                      <p className="text-xs text-zinc-500 mb-2">Unlocked benefits</p>
-                      <div className="flex flex-wrap gap-2">
-                        {conviction.unlockedBenefits.map((b, i) => (
-                          <span
-                            key={i}
-                            className="text-xs px-2.5 py-1 rounded-md bg-violet-500/15 text-violet-300 border border-violet-500/20"
-                          >
-                            {b}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
+        {conviction ? (
+          <ConvictionPanel conviction={conviction} isDemo={useDemo} />
+        ) : (
+          <div className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/40 text-sm text-zinc-400">
+            No market linked — this launch uses the standard {(feeBpsForScore(0) / 100).toFixed(2)}%
+            base fee.
           </div>
         )}
 
         {error && (
-          <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm">
+          <div className="p-4 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm whitespace-pre-wrap break-words">
             {error}
           </div>
         )}
-
         {status && (
           <div className="p-4 rounded-lg bg-violet-500/10 border border-violet-500/30 text-violet-300 text-sm">
             {status}
@@ -283,25 +299,74 @@ export default function LaunchTokenPage() {
         )}
 
         {result && (
-          <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-sm space-y-1">
-            <p className="text-emerald-300 font-medium">Launch created</p>
-            <p className="text-zinc-400">
-              ID: <code>{result.id}</code>
+          <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-sm space-y-1.5">
+            <p className="text-emerald-300 font-medium">
+              {result.mode === "onchain" ? "Launched on-chain" : "Launch record saved"}
             </p>
             <p className="text-zinc-400">
-              Conviction Score: <strong>{result.score}/100</strong>
+              Conviction: <strong>{result.convictionScore}/100</strong> · fee{" "}
+              <strong>{((result.feeBps ?? 0) / 100).toFixed(2)}%</strong>
             </p>
+            {result.mint && (
+              <p className="text-zinc-400 break-all">
+                Mint:{" "}
+                <a
+                  className="text-violet-400 hover:underline"
+                  href={`https://solscan.io/token/${result.mint}${explorerSuffix}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {result.mint}
+                </a>
+              </p>
+            )}
+            {result.signature && (
+              <p className="text-zinc-400 break-all">
+                Tx:{" "}
+                <a
+                  className="text-violet-400 hover:underline"
+                  href={`https://solscan.io/tx/${result.signature}${explorerSuffix}`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  {result.signature.slice(0, 20)}…
+                </a>
+              </p>
+            )}
+            <Link href="/launches" className="inline-block text-violet-400 hover:underline">
+              View all launches →
+            </Link>
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={loading || !publicKey}
-          className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
-        >
-          {loading ? "Creating..." : publicKey ? "Create Launch" : "Connect Wallet First"}
-        </button>
-      </form>
+        <div className="grid gap-3">
+          <button
+            type="button"
+            onClick={launchOnChain}
+            disabled={busy || !publicKey}
+            className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+          >
+            {busy ? "Working..." : publicKey ? "Launch on Meteora (on-chain)" : "Connect Wallet First"}
+          </button>
+          <button
+            type="button"
+            onClick={saveRecordOnly}
+            disabled={busy || !publicKey}
+            className="w-full py-3 rounded-lg border border-zinc-700 hover:border-zinc-500 disabled:opacity-50 disabled:cursor-not-allowed text-sm text-zinc-300 transition"
+          >
+            Save launch record only (no on-chain pool)
+          </button>
+        </div>
+      </div>
     </div>
+  );
+}
+
+export default function LaunchTokenPage() {
+  // useSearchParams needs a Suspense boundary for static prerendering.
+  return (
+    <Suspense fallback={<p className="text-zinc-500">Loading...</p>}>
+      <LaunchForm />
+    </Suspense>
   );
 }

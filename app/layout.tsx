@@ -22,6 +22,10 @@ export default function RootLayout({
         <WalletProvider>
           <Navbar />
           <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
+          <footer className="max-w-6xl mx-auto px-4 py-8 text-xs text-zinc-600 border-t border-zinc-900">
+            Prediction markets <span className="text-zinc-400">Powered by Panta</span> · Launches on
+            Meteora Dynamic Bonding Curve · RPC by RPC Fast
+          </footer>
         </WalletProvider>
       </body>
     </html>
