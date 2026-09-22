@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
+import { PANTA_WRITES_ENABLED, txUrl } from "@/lib/config/network";
+import { sendAndConfirm } from "@/lib/rpc/connection";
+import { decodeTx, extractTxB64 } from "@/lib/panta/tx";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { loadPoolByMint, tokenBalance, type PoolView } from "@/lib/meteora/pools";
 import { launchStore } from "@/lib/conviction/store";
@@ -27,7 +30,7 @@ interface PantaPos {
 }
 
 export default function PortfolioPage() {
-  const { publicKey } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
   const { connection } = useConnection();
   const { ready, blockReason } = useNetwork();
   const records = useSyncExternalStore(launchStore.subscribe, launchStore.getSnapshot, launchStore.getServerSnapshot);
@@ -38,6 +41,9 @@ export default function PortfolioPage() {
   const [positions, setPositions] = useState<PantaPos[] | null>(null);
   const [posError, setPosError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [claiming, setClaiming] = useState<string | null>(null);
+  const [claimMsg, setClaimMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [reloadTick, setReloadTick] = useState(0);
 
   const load = useCallback(async () => {
     if (!publicKey) return;
@@ -101,7 +107,32 @@ export default function PortfolioPage() {
     return () => {
       alive = false;
     };
-  }, [ready, publicKey, load]);
+  }, [ready, publicKey, load, reloadTick]);
+
+  async function claim(marketId: string) {
+    if (!publicKey || !signTransaction) return;
+    setClaiming(marketId);
+    setClaimMsg(null);
+    try {
+      const post = async (url: string, body: unknown) => {
+        const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || `Request failed (${r.status})`);
+        return d;
+      };
+      const build = await post("/api/panta/claim/build", { wallet: publicKey.toBase58(), marketId });
+      const b64 = extractTxB64(build);
+      if (!b64) throw new Error("Panta's claim response had no transaction. Keys: " + Object.keys(build).join(", "));
+      const signed = await signTransaction(decodeTx(b64));
+      const signature = await sendAndConfirm(connection, signed);
+      setClaimMsg({ ok: true, text: `Claimed! ${txUrl(signature)}` });
+      setReloadTick((t) => t + 1);
+    } catch (e) {
+      setClaimMsg({ ok: false, text: e instanceof Error ? e.message : "Claim failed" });
+    } finally {
+      setClaiming(null);
+    }
+  }
 
   const totalValue = holdings?.reduce((s, h) => s + h.valueSol, 0) ?? 0;
 
@@ -159,11 +190,17 @@ export default function PortfolioPage() {
               Prediction-market positions <span className="text-xs text-zinc-500 font-normal">Powered by Panta</span>
             </h2>
             {posError && <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm wrap-break-words">{posError}</div>}
+            {claimMsg && (
+              <div className={`p-3 rounded-lg border text-sm wrap-break-words ${claimMsg.ok ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-300" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>
+                {claimMsg.text}
+              </div>
+            )}
             {positions === null && <p className="text-zinc-500 text-sm">Loading…</p>}
             {positions?.length === 0 && !posError && <p className="text-zinc-500 text-sm">No open positions.</p>}
             <div className="grid gap-3">
               {positions?.map((p, i) => (
-                <Link key={`${p.marketId}-${i}`} href={`/markets/${p.marketId}`} className="block p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition">
+                <div key={`${p.marketId}-${i}`}>
+                <Link href={`/markets/${p.marketId}`} className="block p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition">
                   <p className="font-medium line-clamp-2">{p.market?.title ?? `Market ${p.marketId.slice(0, 8)}…`}</p>
                   <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-sm text-zinc-400">
                     <span className="uppercase">{p.side ?? "—"}</span>
@@ -171,6 +208,17 @@ export default function PortfolioPage() {
                     {p.claimed ? <span className="text-zinc-500">claimed</span> : p.claimable ? <span className="text-emerald-400">claimable</span> : null}
                   </div>
                 </Link>
+                {p.claimable && !p.claimed && PANTA_WRITES_ENABLED && (
+                  <button
+                    type="button"
+                    onClick={() => claim(p.marketId)}
+                    disabled={claiming !== null}
+                    className="mt-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-sm font-medium transition"
+                  >
+                    {claiming === p.marketId ? "Claiming…" : "Claim winnings"}
+                  </button>
+                )}
+                </div>
               ))}
             </div>
           </section>

@@ -1,7 +1,7 @@
 import { NETWORK, NETWORK_WAS_SET, clusterFromGenesis } from "@/lib/config/network";
 import { getUpstream, rpcCall } from "@/lib/rpc/server";
 import { pantaServer } from "@/lib/panta/server";
-import { extractMarketList } from "@/lib/panta/normalize";
+import { extractCategories, extractMarketList } from "@/lib/panta/normalize";
 
 export interface Check {
   name: string;
@@ -117,6 +117,34 @@ export async function runDiagnostics(): Promise<{ network: string; checks: Check
       ok: false,
       detail: (e instanceof Error ? e.message : String(e)).slice(0, 220),
     });
+  }
+
+  // Attribution = trades routed through THIS API key (what Panta's builder track can measure).
+  try {
+    const m = await pantaServer.getAccountMetrics();
+    checks.push({
+      name: "Panta attribution metrics (/account/metrics/)",
+      ok: true,
+      detail: JSON.stringify(m).slice(0, 220),
+    });
+  } catch (e) {
+    checks.push({
+      name: "Panta attribution metrics (/account/metrics/)",
+      ok: false,
+      detail: (e instanceof Error ? e.message : String(e)).slice(0, 220),
+      hint: "This endpoint reports volume attributed to your API key. It may need a key created via /account/keys/.",
+    });
+  }
+
+  try {
+    const cats = extractCategories(await pantaServer.getCategories());
+    checks.push({
+      name: "Panta categories allowlist",
+      ok: cats.length > 0,
+      detail: cats.length ? cats.map((c) => c.value).join(", ").slice(0, 200) : "endpoint answered but no categories parsed",
+    });
+  } catch (e) {
+    checks.push({ name: "Panta categories allowlist", ok: false, detail: (e instanceof Error ? e.message : String(e)).slice(0, 200) });
   }
 
   return { network: NETWORK, checks };

@@ -35,6 +35,10 @@ export const PANTA_WRITES_ENABLED = IS_MAINNET;
 
 export const SOL_DECIMALS = 9;
 
+/** USDC (mainnet). Panta markets are USDC-collateralised and mainnet-only. */
+export const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+export const USDC_DECIMALS = 6;
+
 const suffix = IS_MAINNET ? "" : `?cluster=${NETWORK}`;
 export const txUrl = (sig: string) => `https://solscan.io/tx/${sig}${suffix}`;
 export const addressUrl = (addr: string) => `https://solscan.io/account/${addr}${suffix}`;

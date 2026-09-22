@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { pantaServer, PantaError } from "@/lib/panta/server";
-import { normalizeMarket } from "@/lib/panta/normalize";
+import { PantaError } from "@/lib/panta/server";
+import { loadMarket } from "@/lib/panta/load";
 import { calculateConviction } from "@/lib/conviction/score";
 import { ConvictionPanel } from "@/components/conviction/ConvictionPanel";
-import type { PantaMarket, PantaMarketRaw } from "@/types/panta";
+import { PantaTradePanel } from "@/components/panta/PantaTradePanel";
+import type { PantaMarket } from "@/types/panta";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +20,8 @@ export default async function MarketDetailPage({ params }: Props) {
   let notFound = false;
 
   try {
-    const raw = (await pantaServer.getMarket(id)) as PantaMarketRaw;
-    if (raw && raw.marketId) market = normalizeMarket(raw);
+    const m = await loadMarket(id);
+    if (m) market = m;
     else notFound = true;
   } catch (err) {
     if (err instanceof PantaError && err.status === 404) notFound = true;
@@ -30,7 +31,15 @@ export default async function MarketDetailPage({ params }: Props) {
   if (error) {
     return (
       <div className="space-y-4">
-        <Link href="/markets" className="text-sm text-zinc-400 hover:text-white">
+        {/* Back to the previous page */}
+        <Link
+          href={(typeof window !== "undefined" && window.location.href) || ""}
+          className="text-sm text-zinc-400 hover:text-white"
+          onClick={(e) => {
+            e.preventDefault();
+            window.history.back();
+          }}
+        >
           ← Back to Markets
         </Link>
         <div className="p-6 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm whitespace-pre-wrap wrap-break-words">
@@ -99,26 +108,13 @@ export default async function MarketDetailPage({ params }: Props) {
 
       <ConvictionPanel conviction={conviction} />
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="font-semibold">Trade</h2>
-          <span className="text-xs text-zinc-500">Powered by Panta</span>
-        </div>
-        <div className="grid grid-cols-2 gap-3 text-center">
-          <div className="p-3 rounded-lg bg-emerald-600/10 border border-emerald-600/20">
-            <p className="text-xs text-emerald-300">YES</p>
-            <p className="text-xl font-bold mt-1">{market.yesPrice === null ? "—" : `${Math.round(market.yesPrice * 100)}¢`}</p>
-          </div>
-          <div className="p-3 rounded-lg bg-rose-600/10 border border-rose-600/20">
-            <p className="text-xs text-rose-300">NO</p>
-            <p className="text-xl font-bold mt-1">{market.noPrice === null ? "—" : `${Math.round(market.noPrice * 100)}¢`}</p>
-          </div>
-        </div>
-        <p className="text-xs text-zinc-500">
-          In-app buying of YES/NO shares needs Panta&apos;s order endpoints, which are not wired yet
-          (see docs/PANTA_TRADING.md). Your existing positions are shown on the Portfolio page.
-        </p>
-      </div>
+      <PantaTradePanel
+        marketId={market.marketId}
+        title={market.title}
+        phase={market.phase}
+        yesPrice={market.yesPrice}
+        noPrice={market.noPrice}
+      />
 
       <div className="flex flex-wrap items-center gap-4">
         <Link

@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { pantaServer } from "@/lib/panta/server";
-import { errorResponse } from "@/lib/panta/route-helpers";
+import { crossOriginResponse, errorResponse } from "@/lib/panta/route-helpers";
 
 export async function POST(req: NextRequest) {
+  const blocked = crossOriginResponse(req);
+  if (blocked) return blocked;
   try {
     const body = await req.json();
     const { wallet, question, description, category, imageUrl } = body ?? {};

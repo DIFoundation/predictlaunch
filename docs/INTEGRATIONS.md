@@ -29,12 +29,18 @@
 
 | Action | Method + path | Status |
 |---|---|---|
-| List markets | `GET /markets/` | wired (`/markets`) |
-| Get market | `GET /markets/{id}/` | wired (market page + conviction on `/launch`) |
-| Create: quote | `POST /markets/create/quote/` | wired; needs a live key to verify |
-| Create: build | `POST /markets/create/build/` body `{ createId }` | wired (was wrongly sent as `quoteId`) |
-| Create: register | `POST /markets/create/register/` body `{ createId, signature }` | wired (path was `/markets/register/`); **body shape unverified** |
-| Buy YES/NO | orders endpoints | not implemented |
+| List / get market | `GET /markets/`, `GET /markets/{id}/` | wired |
+| Live prices + volume | `GET /markets/{id}/prices/` | wired (merged into market detail + launch page) |
+| Categories | `GET /categories/` | wired (create-market dropdown) |
+| Create: quote / build | `POST /markets/create/quote/`, `/markets/create/build/` | wired |
+| Create: register | `POST /markets/register/` | wired (an earlier version used a wrong path) |
+| Buy YES/NO (primary) | `/primaryorderquote/` -> `/primaryorderbuild/` -> sign -> `/primaryordersubmit/` -> `/primaryorderverify/` | wired; **request bodies guessed** in `lib/panta/trade-spec.ts`, USDC spend verified by simulation |
+| Claim | `POST /claim/build/` | wired; body guessed |
+| Attribution | `POST /trades/`, `GET /account/metrics/`, `/account/trades/` | wired |
+| Positions | `GET /positions/?wallet=` | wired |
+| Image upload | `POST /markets/create/image-upload/` | not wired (response shape unknown) |
+
+See `docs/PANTA_TRADING.md` for details.
 
 ## 3. Meteora Dynamic Bonding Curve
 - `lib/meteora/client.ts` builds a full config with the SDK's `buildCurveWithMarketCap` and submits

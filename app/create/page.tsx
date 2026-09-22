@@ -1,29 +1,24 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { Transaction, VersionedTransaction } from "@solana/web3.js";
 import { useRouter } from "next/navigation";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { PANTA_WRITES_ENABLED } from "@/lib/config/network";
 import { sendAndConfirm } from "@/lib/rpc/connection";
+import { decodeTx, extractTxB64 } from "@/lib/panta/tx";
 
 type Quote = Record<string, unknown> & { createId?: string; paymentUsdc?: number | string };
 
-function base64ToBytes(b64: string): Uint8Array {
-  const bin = atob(b64);
-  const out = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
-  return out;
-}
-
-/** Panta returns a base64 serialized tx; the field name isn't documented in our notes, so be tolerant. */
-function extractTx(build: Record<string, unknown>): string | null {
-  for (const k of ["transaction", "tx", "serializedTransaction", "txBase64", "transactionBase64"]) {
-    if (typeof build[k] === "string" && (build[k] as string).length > 100) return build[k] as string;
-  }
-  return null;
-}
+// Used only if Panta's /categories/ allowlist can't be loaded.
+const FALLBACK_CATEGORIES = [
+  { value: "crypto", label: "Crypto" },
+  { value: "sports", label: "Sports" },
+  { value: "politics", label: "Politics" },
+  { value: "finance", label: "Finance" },
+  { value: "entertainment", label: "Entertainment" },
+  { value: "other", label: "Other" },
+];
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, {
@@ -45,9 +40,26 @@ export default function CreateMarketPage() {
   const [question, setQuestion] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("crypto");
+  const [categories, setCategories] = useState<{ value: string; label: string }[]>(FALLBACK_CATEGORIES);
   const [imageUrl, setImageUrl] = useState("");
 
   const [quote, setQuote] = useState<Quote | null>(null);
+
+  // Panta enforces a category allowlist; read the real one.
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/panta/categories")
+      .then((r) => r.json())
+      .then((d) => {
+        if (!alive || !Array.isArray(d.items) || d.items.length === 0) return;
+        setCategories(d.items);
+        setCategory((cur) => (d.items.some((c: { value: string }) => c.value === cur) ? cur : d.items[0].value));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,20 +105,14 @@ export default function CreateMarketPage() {
     try {
       setStatus("Building transaction...");
       const build = await postJson<Record<string, unknown>>("/api/panta/build", { createId });
-      const b64 = extractTx(build);
+      const b64 = extractTxB64(build);
       if (!b64) {
         throw new Error("Build response had no transaction. Keys: " + Object.keys(build).join(", "));
       }
 
       // Deserialize FIRST, sign second. (The old code wrapped both in one try/catch, so a
       // wallet "User rejected" error fell through to the legacy path and got masked.)
-      const bytes = base64ToBytes(b64);
-      let tx: VersionedTransaction | Transaction;
-      try {
-        tx = VersionedTransaction.deserialize(bytes);
-      } catch {
-        tx = Transaction.from(bytes);
-      }
+      const tx = decodeTx(b64);
 
       setStatus("Approve the transaction in your wallet...");
       const signed = await signTransaction(tx);
@@ -182,12 +188,11 @@ export default function CreateMarketPage() {
             onChange={(e) => setCategory(e.target.value)}
             disabled={busy || !!quote}
           >
-            <option value="crypto">Crypto</option>
-            <option value="sports">Sports</option>
-            <option value="politics">Politics</option>
-            <option value="finance">Finance</option>
-            <option value="entertainment">Entertainment</option>
-            <option value="other">Other</option>
+            {categories.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
           </select>
         </div>
         <div>

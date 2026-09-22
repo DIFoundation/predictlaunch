@@ -78,9 +78,50 @@ export const pantaServer = {
     return pantaFetch(`/markets/${encodeURIComponent(marketId)}/`);
   },
 
-  /** Positions for a wallet (path taken from the team's original client; verify against a live key). */
+  /** GET /positions/?wallet= -- indexer holdings + registry + claimable policy (confirmed in Panta's OpenAPI schema). */
   getPositions(wallet: string) {
     return pantaFetch(`/positions/?wallet=${encodeURIComponent(wallet)}`);
+  },
+
+  /** GET /categories/ -- the allowlist Panta enforces on create + list filters. */
+  getCategories() {
+    return pantaFetch("/categories/");
+  },
+
+  /** GET /markets/{id}/prices/ -- live on-chain prices and volume (the catalog row often has null prices). */
+  getMarketPrices(marketId: string) {
+    return pantaFetch(`/markets/${encodeURIComponent(marketId)}/prices/`);
+  },
+
+  // ---- Primary-market buy: quote -> build -> (user signs + broadcasts) -> submit -> verify ----
+  primaryOrderQuote(body: unknown) {
+    return pantaFetch("/primaryorderquote/", { method: "POST", body: JSON.stringify(body) });
+  },
+  primaryOrderBuild(body: unknown) {
+    return pantaFetch("/primaryorderbuild/", { method: "POST", body: JSON.stringify(body) });
+  },
+  primaryOrderSubmit(body: unknown) {
+    return pantaFetch("/primaryordersubmit/", { method: "POST", body: JSON.stringify(body) });
+  },
+  primaryOrderVerify(body: unknown) {
+    return pantaFetch("/primaryorderverify/", { method: "POST", body: JSON.stringify(body) });
+  },
+
+  // ---- Claim winnings ----
+  claimBuild(body: unknown) {
+    return pantaFetch("/claim/build/", { method: "POST", body: JSON.stringify(body) });
+  },
+
+  // ---- Attribution: trades routed through this API key (what the Panta track measures) ----
+  /** POST /trades/ -- verify an on-chain buy/claim and attribute it to this API key. */
+  attributeTrade(body: unknown) {
+    return pantaFetch("/trades/", { method: "POST", body: JSON.stringify(body) });
+  },
+  getAccountMetrics() {
+    return pantaFetch("/account/metrics/");
+  },
+  getAccountTrades() {
+    return pantaFetch("/account/trades/");
   },
 
   /** Step 1: quote. Response includes `createId` and the USDC fee (`paymentUsdc`). */
@@ -119,9 +160,9 @@ export const pantaServer = {
     });
   },
 
-  /** Step 3: register the broadcast signature. Path is /markets/create/register/. */
+  /** Step 3: register the broadcast signature. Path is /markets/register/ (confirmed in Panta's OpenAPI schema). */
   registerMarket(payload: { createId: string; signature: string }) {
-    return pantaFetch("/markets/create/register/", {
+    return pantaFetch("/markets/register/", {
       method: "POST",
       body: JSON.stringify(payload),
     });

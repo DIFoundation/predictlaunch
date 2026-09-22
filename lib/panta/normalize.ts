@@ -73,3 +73,64 @@ export function extractMarketList(data: unknown): PantaMarketRaw[] {
   }
   return [];
 }
+
+// ---------------------------------------------------------------------------
+// /markets/{id}/prices/ overlay + /categories/ parsing.
+// The response shapes are not in Panta's schema, so these read defensively:
+// unknown shape => no change (never invents data).
+// ---------------------------------------------------------------------------
+
+function firstDefined(obj: Record<string, unknown> | null | undefined, keys: string[]): unknown {
+  if (!obj) return undefined;
+  for (const k of keys) {
+    if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
+  }
+  return undefined;
+}
+
+/** Overlay live on-chain prices/volume from /prices/ onto the catalog row. */
+export function overlayPrices(raw: PantaMarketRaw, prices: unknown): PantaMarketRaw {
+  if (!prices || typeof prices !== "object") return raw;
+  const root = prices as Record<string, unknown>;
+  // Tolerate { data: {...} } / { prices: {...} } envelopes.
+  const p = ((root.data ?? root.prices ?? root) as Record<string, unknown>) || root;
+
+  const yes = firstDefined(p, ["yesPrice", "yes_price", "priceYes", "yes", "primaryYesPrice", "secondaryYesPrice"]);
+  const no = firstDefined(p, ["noPrice", "no_price", "priceNo", "no", "primaryNoPrice", "secondaryNoPrice"]);
+  const vol = firstDefined(p, ["volumeUsdc", "volume_usdc", "volume", "totalVolume", "totalVolumeUsdc"]);
+
+  return {
+    ...raw,
+    ...(yes !== undefined ? { yesPrice: yes as string | number } : {}),
+    ...(no !== undefined ? { noPrice: no as string | number } : {}),
+    ...(vol !== undefined ? { volumeUsdc: vol as string | number } : {}),
+  };
+}
+
+/** Accepts ["crypto", ...] or [{ slug|id|value|name|label }, ...] or { items|results|categories: [...] }. */
+export function extractCategories(data: unknown): { value: string; label: string }[] {
+  let list: unknown[] = [];
+  if (Array.isArray(data)) list = data;
+  else if (data && typeof data === "object") {
+    const d = data as Record<string, unknown>;
+    for (const k of ["items", "results", "categories", "data"]) {
+      if (Array.isArray(d[k])) {
+        list = d[k] as unknown[];
+        break;
+      }
+    }
+  }
+  const out: { value: string; label: string }[] = [];
+  for (const c of list) {
+    if (typeof c === "string") out.push({ value: c, label: c });
+    else if (c && typeof c === "object") {
+      const o = c as Record<string, unknown>;
+      const value = firstDefined(o, ["slug", "id", "value", "key", "name"]);
+      const label = firstDefined(o, ["name", "label", "title", "slug", "id", "value"]);
+      if (typeof value === "string" || typeof value === "number") {
+        out.push({ value: String(value), label: String(label ?? value) });
+      }
+    }
+  }
+  return out;
+}
