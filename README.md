@@ -37,6 +37,7 @@ Prediction markets (Panta) act as proof of demand. When those markets show stron
 | Prediction Markets | Panta API                               |
 | Token Launches     | Meteora Dynamic Bonding Curve SDK       |
 | RPC                | RPC Fast via a server-side relay (`/api/rpc`) |
+| Charts              | recharts -- bonding curve, YES price history, portfolio holdings |
 | State              | On-chain / Panta live data; localStorage only caches app metadata |
 
 ---
@@ -65,6 +66,9 @@ PANTA_API_BASE_URL=https://live-api.panta.market/api/v1
 ```
 
 Open `/status` after starting the app to verify the RPC, network and Panta connection.
+
+This project currently runs on **mainnet** with a live Panta key. Devnet and testnet remain fully
+supported by the same `NEXT_PUBLIC_SOLANA_NETWORK` switch -- see `.env.example`.
 
 ---
 

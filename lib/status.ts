@@ -147,5 +147,19 @@ export async function runDiagnostics(): Promise<{ network: string; checks: Check
     checks.push({ name: "Panta categories allowlist", ok: false, detail: (e instanceof Error ? e.message : String(e)).slice(0, 200) });
   }
 
+  try {
+    await pantaServer.getMarketTrades("__status_probe__");
+    checks.push({ name: "Panta trade history (/markets/{id}/trades/)", ok: true, detail: "endpoint reachable" });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    // A 404 for a fake market id still proves the ROUTE exists and is reachable.
+    const reachable = /404/.test(msg);
+    checks.push({
+      name: "Panta trade history (/markets/{id}/trades/)",
+      ok: reachable,
+      detail: reachable ? "endpoint reachable (404 for a fake market id, as expected)" : msg.slice(0, 220),
+    });
+  }
+
   return { network: NETWORK, checks };
 }

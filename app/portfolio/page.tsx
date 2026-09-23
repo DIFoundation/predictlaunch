@@ -7,6 +7,7 @@ import { PublicKey } from "@solana/web3.js";
 import { PANTA_WRITES_ENABLED, txUrl } from "@/lib/config/network";
 import { sendAndConfirm } from "@/lib/rpc/connection";
 import { decodeTx, extractTxB64 } from "@/lib/panta/tx";
+import { HoldingsChart } from "@/components/charts/HoldingsChart";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { loadPoolByMint, tokenBalance, type PoolView } from "@/lib/meteora/pools";
 import { launchStore } from "@/lib/conviction/store";
@@ -159,6 +160,10 @@ export default function PortfolioPage() {
               <p className="font-medium mt-1">{holdings === null ? "—" : `${totalValue.toFixed(4)} SOL`}</p>
             </div>
           </div>
+
+          {holdings && holdings.length > 0 && (
+            <HoldingsChart holdings={holdings.map((h) => ({ label: h.pool.symbol || "?", valueSol: h.valueSol }))} />
+          )}
 
           <section className="space-y-3">
             <h2 className="text-xl font-semibold">Launched tokens</h2>

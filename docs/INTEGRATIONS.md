@@ -1,5 +1,11 @@
 # Integrations Notes
 
+## 0. Charts
+- **Library:** recharts (already used in the earlier codebase's allowed-libraries list; installed as a normal dependency here since this is a full Next.js app, not an artifact).
+- **Bonding curve** (`/launches/[mint]`): deterministic, computed from the pool's own config -- see Meteora section below.
+- **YES price history** (`/markets/[id]`): from Panta's `/markets/{id}/trades/`, parsed defensively; shows a plain message instead of a chart if the response can't be parsed.
+- **Portfolio holdings**: bar chart of token value, computed from data already loaded for the page (no new calls).
+
 ## 1. RPC Fast
 - **Network switch:** `NEXT_PUBLIC_SOLANA_NETWORK=mainnet|devnet|testnet`; endpoints `SOLANA_RPC_MAINNET` / `SOLANA_RPC_DEVNET` / `SOLANA_RPC_TESTNET` (server-side). The value is inlined at build time: set it in Vercel *before* deploying and redeploy after changing it.
 - **Testnet caveat:** `/status` looks up the Meteora DBC program on the configured cluster and reports if it is not deployed there.
@@ -31,14 +37,15 @@
 |---|---|---|
 | List / get market | `GET /markets/`, `GET /markets/{id}/` | wired |
 | Live prices + volume | `GET /markets/{id}/prices/` | wired (merged into market detail + launch page) |
+| Trade history | `GET /markets/{id}/trades/` | wired; charted on the market page; response shape guessed |
 | Categories | `GET /categories/` | wired (create-market dropdown) |
 | Create: quote / build | `POST /markets/create/quote/`, `/markets/create/build/` | wired |
 | Create: register | `POST /markets/register/` | wired (an earlier version used a wrong path) |
+| Create: image upload | `POST /markets/create/image-upload/` | wired (beta); request + response shapes guessed (`lib/panta/upload-spec.ts`); falls back to a manual image URL on failure |
 | Buy YES/NO (primary) | `/primaryorderquote/` -> `/primaryorderbuild/` -> sign -> `/primaryordersubmit/` -> `/primaryorderverify/` | wired; **request bodies guessed** in `lib/panta/trade-spec.ts`, USDC spend verified by simulation |
 | Claim | `POST /claim/build/` | wired; body guessed |
 | Attribution | `POST /trades/`, `GET /account/metrics/`, `/account/trades/` | wired |
 | Positions | `GET /positions/?wallet=` | wired |
-| Image upload | `POST /markets/create/image-upload/` | not wired (response shape unknown) |
 
 See `docs/PANTA_TRADING.md` for details.
 

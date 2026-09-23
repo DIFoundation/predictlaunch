@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { TokenTradePanel } from "@/components/trade/TokenTradePanel";
+import { CurveChart } from "@/components/charts/CurveChart";
 import { loadPoolByMint, type PoolView } from "@/lib/meteora/pools";
 import { launchStore } from "@/lib/conviction/store";
 import { levelForScore } from "@/lib/conviction/score";
@@ -123,6 +124,8 @@ export default function TokenPage({ params }: { params: Promise<{ mint: string }
               <div className="h-full bg-violet-500 transition-all" style={{ width: `${pool.progress * 100}%` }} />
             </div>
           </div>
+
+          <CurveChart points={pool.curveShape} current={{ quoteReserveSol: pool.quoteReserveSol, priceSol: pool.priceSol }} />
 
           <TokenTradePanel pool={pool} poolAddress={record?.pool ?? pool.pool} onTraded={() => setReloadTick((t) => t + 1)} />
         </>

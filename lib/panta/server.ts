@@ -88,9 +88,19 @@ export const pantaServer = {
     return pantaFetch("/categories/");
   },
 
+  /** POST /markets/create/image-upload/ -- issue a direct-upload signature (see lib/panta/upload-spec.ts). */
+  createImageUpload(body: unknown) {
+    return pantaFetch("/markets/create/image-upload/", { method: "POST", body: JSON.stringify(body) });
+  },
+
   /** GET /markets/{id}/prices/ -- live on-chain prices and volume (the catalog row often has null prices). */
   getMarketPrices(marketId: string) {
     return pantaFetch(`/markets/${encodeURIComponent(marketId)}/prices/`);
+  },
+
+  /** GET /markets/{id}/trades/ -- "Balr trade history for a market" (confirmed path, response shape not documented). */
+  getMarketTrades(marketId: string) {
+    return pantaFetch(`/markets/${encodeURIComponent(marketId)}/trades/`);
   },
 
   // ---- Primary-market buy: quote -> build -> (user signs + broadcasts) -> submit -> verify ----

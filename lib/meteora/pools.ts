@@ -1,6 +1,8 @@
 import { Connection, PublicKey, Transaction } from "@solana/web3.js";
 import BN from "bn.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import { computeCurveShape, type CurvePoint } from "@/lib/meteora/curveShape";
+import type { ProgramAccount } from "@coral-xyz/anchor";
 
 /**
  * Live reads + swaps for Meteora Dynamic Bonding Curve pools.
@@ -27,6 +29,8 @@ export interface PoolView {
   feeBps: number;
   name?: string;
   symbol?: string;
+  /** Deterministic price-vs-SOL-raised shape of the curve, computed from config (no RPC history needed). */
+  curveShape: CurvePoint[];
 }
 
 /** "1.5" + 6 decimals -> BN(1500000), without floating point. */
@@ -67,8 +71,9 @@ export function parseTokenMetadata(data: Uint8Array): { name: string; symbol: st
   }
 }
 
-async function readMetadata(conn: Connection, mints: PublicKey[]) {
+async function readMetadata(mints: PublicKey[], c: SdkClient) {
   const S = await loadSdk();
+  const conn = c.state.program.provider.connection;
   const out = new Map<string, { name: string; symbol: string }>();
   const pdas = mints.map((m) => S.deriveMintMetadata(m));
   for (let i = 0; i < pdas.length; i += 90) {
@@ -99,6 +104,12 @@ function view(
   pool: PoolAccount,
   config: PoolConfig
 ): PoolView {
+  const curveShape = computeCurveShape(
+    { curve: config.curve, sqrtStartPrice: config.sqrtStartPrice, migrationQuoteThreshold: config.migrationQuoteThreshold, tokenDecimal: Number(config.tokenDecimal) },
+    S.getDeltaAmountQuoteUnsigned,
+    S.getPriceFromSqrtPrice,
+    S.Rounding.Down
+  );
   const ps = pool.poolState; // the SDK wraps all pool fields in `poolState`
   const decimals = Number(config.tokenDecimal);
   const price = S.getPriceFromSqrtPrice(ps.sqrtPrice, decimals, SOL_DECIMALS).toNumber();
@@ -119,6 +130,7 @@ function view(
     isMigrated: ps.isMigrated !== 0,
     // numerator / 1e9 = fraction; * 10_000 = bps
     feeBps: Number(config.poolFees.baseFee.cliffFeeNumerator.toString()) / 100_000,
+    curveShape,
   };
 }
 
@@ -152,14 +164,15 @@ export async function loadPoolByMint(
   const config = await c.state.getPoolConfig(found.account.poolState.config);
   if (!config) return null;
   const v = view(S, found.publicKey, found.account, config);
-  const md = (await readMetadata(conn, [mintKey])).get(mint);
+  const md = (await readMetadata([mintKey], c)).get(mint);
   return { ...v, name: md?.name, symbol: md?.symbol };
 }
 
-/** Real launches created by this wallet, straight from the DBC program (needs getProgramAccounts on your RPC). */
-export async function loadPoolsByCreator(conn: Connection, creator: PublicKey): Promise<PoolView[]> {
-  const { S, c } = await client(conn);
-  const pools = await c.state.getPoolsByCreator(creator);
+async function viewsFromPools(
+  S: Awaited<ReturnType<typeof loadSdk>>,
+  c: SdkClient,
+  pools: ProgramAccount<PoolAccount>[]
+): Promise<PoolView[]> {
   if (pools.length === 0) return [];
 
   const configKeys = [...new Set(pools.map((p) => p.account.poolState.config.toBase58()))];
@@ -176,10 +189,28 @@ export async function loadPoolsByCreator(conn: Connection, creator: PublicKey): 
     const cfg = configs.get(p.account.poolState.config.toBase58());
     if (cfg) views.push(view(S, p.publicKey, p.account, cfg));
   }
-  const md = await readMetadata(conn, views.map((v) => new PublicKey(v.mint)));
+  const md = await readMetadata(views.map((v) => new PublicKey(v.mint)), c);
   return views
     .map((v) => ({ ...v, name: md.get(v.mint)?.name, symbol: md.get(v.mint)?.symbol }))
     .sort((a, b) => b.quoteReserveSol - a.quoteReserveSol);
+}
+
+/** Real launches created by this wallet, straight from the DBC program (needs getProgramAccounts on your RPC). */
+export async function loadPoolsByCreator(conn: Connection, creator: PublicKey): Promise<PoolView[]> {
+  const { S, c } = await client(conn);
+  return viewsFromPools(S, c, await c.state.getPoolsByCreator(creator));
+}
+
+/**
+ * Every DBC launch on this network -- a real, chain-wide "explore" feed rather than a per-wallet
+ * list, using the SDK's unfiltered getPools(). Sorted by SOL raised so far and capped, since a
+ * busy network can have many pools.
+ */
+export async function loadAllPools(conn: Connection, limit = 60): Promise<PoolView[]> {
+  const { S, c } = await client(conn);
+  const pools = await c.state.getPools();
+  const views = await viewsFromPools(S, c, pools);
+  return views.slice(0, limit);
 }
 
 /** Wallet balance of one token (UI units). */

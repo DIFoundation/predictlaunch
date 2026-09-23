@@ -7,6 +7,7 @@ import { useNetwork } from "@/components/network/NetworkProvider";
 import { PANTA_WRITES_ENABLED } from "@/lib/config/network";
 import { sendAndConfirm } from "@/lib/rpc/connection";
 import { decodeTx, extractTxB64 } from "@/lib/panta/tx";
+import { parseUploadResponse, uploadToTarget } from "@/lib/panta/upload-spec";
 
 type Quote = Record<string, unknown> & { createId?: string; paymentUsdc?: number | string };
 
@@ -44,6 +45,8 @@ export default function CreateMarketPage() {
   const [imageUrl, setImageUrl] = useState("");
 
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // Panta enforces a category allowlist; read the real one.
   useEffect(() => {
@@ -63,6 +66,26 @@ export default function CreateMarketPage() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Best-effort image upload (endpoint + response shape are guessed -- see lib/panta/upload-spec.ts).
+  // Falls back cleanly: on any failure, the manual Image URL field above still works.
+  async function handleFileUpload(file: File) {
+    setUploading(true);
+    setUploadError(null);
+    try {
+      const res = await postJson<{ target: unknown }>("/api/panta/upload-image", {
+        filename: file.name,
+        contentType: file.type || "image/png",
+      });
+      const target = parseUploadResponse(res.target);
+      const url = await uploadToTarget(target, file);
+      setImageUrl(url);
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "Upload failed");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   // Step 1: ask Panta for a quote. Nothing is signed or spent yet.
   async function handleQuote(e: React.FormEvent) {
@@ -208,6 +231,24 @@ export default function CreateMarketPage() {
             Panta rejects many image hosts at build time. If build fails with a generic error, try a
             different image URL.
           </p>
+          <div className="mt-2 flex items-center gap-3">
+            <label className="text-xs px-3 py-1.5 rounded-lg border border-zinc-700 hover:border-zinc-500 cursor-pointer transition text-zinc-300">
+              {uploading ? "Uploading…" : "Or upload an image"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={busy || uploading || !!quote}
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void handleFileUpload(f);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+            <span className="text-xs text-zinc-600">beta, unverified against Panta&apos;s real API</span>
+          </div>
+          {uploadError && <p className="text-xs text-red-400 mt-1.5 whitespace-pre-wrap break-words">{uploadError}</p>}
         </div>
 
         {!quote && (

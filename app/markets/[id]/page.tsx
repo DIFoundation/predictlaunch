@@ -4,6 +4,9 @@ import { loadMarket } from "@/lib/panta/load";
 import { calculateConviction } from "@/lib/conviction/score";
 import { ConvictionPanel } from "@/components/conviction/ConvictionPanel";
 import { PantaTradePanel } from "@/components/panta/PantaTradePanel";
+import { PriceHistoryChart } from "@/components/charts/PriceHistoryChart";
+import { normalizeTrades } from "@/lib/panta/trades";
+import { pantaServer } from "@/lib/panta/server";
 import type { PantaMarket } from "@/types/panta";
 
 export const dynamic = "force-dynamic";
@@ -18,11 +21,18 @@ export default async function MarketDetailPage({ params }: Props) {
   let market: PantaMarket | undefined;
   let error: string | null = null;
   let notFound = false;
+  let trades: ReturnType<typeof normalizeTrades> = [];
 
   try {
     const m = await loadMarket(id);
-    if (m) market = m;
-    else notFound = true;
+    if (m) {
+      market = m;
+      try {
+        trades = normalizeTrades(await pantaServer.getMarketTrades(id));
+      } catch {
+        trades = []; // history is a nicety, never blocks the page
+      }
+    } else notFound = true;
   } catch (err) {
     if (err instanceof PantaError && err.status === 404) notFound = true;
     else error = err instanceof Error ? err.message : "Failed to load market";
@@ -107,6 +117,8 @@ export default async function MarketDetailPage({ params }: Props) {
       </div>
 
       <ConvictionPanel conviction={conviction} />
+
+      <PriceHistoryChart trades={trades} />
 
       <PantaTradePanel
         marketId={market.marketId}

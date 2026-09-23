@@ -9,6 +9,7 @@ import { launchStore } from "@/lib/conviction/store";
 import { ConvictionPanel } from "@/components/conviction/ConvictionPanel";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { prepareLaunch, simulateLaunch, sendLaunch } from "@/lib/meteora/client";
+import { buildMetadataUri } from "@/lib/meteora/metadataUri";
 import { IS_MAINNET, isPublicHttpsUrl, txUrl } from "@/lib/config/network";
 import type { LinkedMarket, LaunchRecord } from "@/types/conviction";
 import type { PantaMarket } from "@/types/panta";
@@ -28,6 +29,7 @@ function LaunchForm() {
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [description, setDescription] = useState("");
+  const [imageUrl, setImageUrl] = useState("");
   const [linkedMarketId, setLinkedMarketId] = useState(searchParams.get("market") ?? "");
 
   const [markets, setMarkets] = useState<PantaMarket[]>([]);
@@ -112,13 +114,12 @@ function LaunchForm() {
     setResult(null);
     try {
       setStatus("Building Meteora config + pool transaction...");
-      const meta = new URLSearchParams({ name: name.trim(), symbol: symbol.trim().toUpperCase() });
-      if (description.trim()) meta.set("description", description.trim());
-      let uri = `${window.location.origin}/api/metadata?${meta.toString()}`;
-      if (uri.length > 200) {
-        meta.delete("description"); // on-chain URI limit is 200 chars
-        uri = `${window.location.origin}/api/metadata?${meta.toString()}`;
-      }
+      const uri = buildMetadataUri(window.location.origin, {
+        name: name.trim(),
+        symbol: symbol.trim().toUpperCase(),
+        description: description.trim() || undefined,
+        imageUrl: imageUrl.trim() || undefined,
+      });
 
       const prepared = await prepareLaunch(connection, {
         name: name.trim(),
@@ -186,6 +187,11 @@ function LaunchForm() {
         <div>
           <label className="block text-sm font-medium mb-2">Description</label>
           <textarea className={inputCls} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this token about?" disabled={busy} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-2">Image URL (optional)</label>
+          <input className={inputCls} value={imageUrl} onChange={(e) => setImageUrl(e.target.value)} placeholder="https://... (a public logo image)" disabled={busy} />
+          <p className="text-xs text-zinc-500 mt-1.5">Shown by wallets and explorers. If the name, description and image together don&apos;t fit the on-chain metadata limit, the description is dropped first, then the image.</p>
         </div>
 
         <div>

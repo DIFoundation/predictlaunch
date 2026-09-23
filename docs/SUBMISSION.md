@@ -5,8 +5,8 @@ Hackathon window: **Sept 14 – Oct 12, 2026** (Colosseum Crypto World's Fair). 
 ## Where each sponsor shows up (be explicit in the submission text and video)
 | Track | What the app does | Where a judge sees it |
 |---|---|---|
-| **Panta API** | Live markets + on-chain prices; conviction score from real volume/YES price; **in-app buy (primary-order flow) with on-chain USDC verification; claim winnings; trades attributed to our API key**; create-market flow; positions. "Powered by Panta" on market pages + footer. | `/markets/[id]` (Trade panel), `/portfolio`, `/create`, `/status` (attribution metrics) |
-| **Meteora DBC** | One-transaction config+pool creation via `buildCurveWithMarketCap`; **trading fee set by conviction** (2.0% → 0.5%); live pool reads (price, market cap, graduation progress); in-app buy/sell with re-quote + slippage. | `/launch`, `/launches`, `/launches/[mint]` |
+| **Panta API** | Live markets + on-chain prices + real trade-history chart; conviction score from real volume/YES price; **in-app buy (primary-order flow) with on-chain USDC verification; claim winnings; trades attributed to our API key**; create-market flow with live category list + beta image upload; positions. "Powered by Panta" on market pages + footer. | `/markets/[id]` (chart + trade panel), `/portfolio`, `/create`, `/status` (attribution metrics) |
+| **Meteora DBC** | One-transaction config+pool creation via `buildCurveWithMarketCap`; **trading fee set by conviction** (2.0% → 0.5%); live pool reads (price, market cap, graduation progress); in-app buy/sell with re-quote + slippage; **a real bonding-curve chart computed from the pool's own config**; **a chain-wide Explore feed of every launch**, not just one wallet's; token image in on-chain metadata. | `/launch`, `/launches`, `/launches/[mint]`, `/explore` |
 | **RPC Fast** | Every Solana read/write goes through an RPC Fast-backed server relay; `/status` proves connectivity, cluster and method support. | `/status`, footer |
 | **Superteam Nigeria** | TODO: decide the local angle (see below) | — |
 
