@@ -28,5 +28,6 @@ export interface ConvictionResult {
   score: number; // 0-100
   level: ConvictionLevel;
   reasons: string[];
+  breakdown: Array<{ label: string; points: number; max: number }>;
   unlockedBenefits: string[];
 }
