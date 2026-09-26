@@ -26,10 +26,21 @@ export async function runDiagnostics(): Promise<{ network: string; checks: Check
   });
 
   checks.push({
-    name: "RPC endpoint configured",
-    ok: !!up.url,
+    name: "RPC Fast endpoint configured",
+    ok: !!up.url && up.isRpcFast,
     detail: up.url ? `${up.host} (from ${up.source})` : "none",
-    hint: up.url ? undefined : `Set SOLANA_RPC_${NETWORK.toUpperCase()} in .env.local`,
+    hint: up.isRpcFast
+      ? undefined
+      : `Set SOLANA_RPC_${NETWORK.toUpperCase()} to the exact RPC Fast endpoint from your RPC Fast dashboard.`,
+  });
+
+  checks.push({
+    name: "RPC endpoint reachable",
+    ok: !!up.url,
+    detail: up.url ? `${up.host} (${up.source})` : "none",
+    hint: up.isPublicFallback
+      ? "Public Solana RPC is enabled only as a development fallback. Use RPC Fast before production or hackathon submission."
+      : undefined,
   });
 
   if (up.url) {

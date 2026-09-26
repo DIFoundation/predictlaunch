@@ -67,6 +67,12 @@ PANTA_API_BASE_URL=https://live-api.panta.market/api/v1
 
 Open `/status` after starting the app to verify the RPC, network and Panta connection.
 
+### RPC Fast configuration
+
+The browser never connects directly to the Solana provider. `app/api/rpc/route.ts` relays allowed JSON-RPC calls server-side using the network-specific `SOLANA_RPC_*` variable. RPC Fast documents the SaaS Solana endpoint as `https://sol.rpcfast.com/<api_key>`. Keep that endpoint in `.env.local` only; never prefix it with `NEXT_PUBLIC_`.
+
+The `/status` page checks the endpoint host, verifies the configured Solana cluster through `getGenesisHash`, checks the Meteora DBC program, and reports whether the app is still using the public Solana fallback.
+
 This project currently runs on **mainnet** with a live Panta key. Devnet and testnet remain fully
 supported by the same `NEXT_PUBLIC_SOLANA_NETWORK` switch -- see `.env.example`.
 

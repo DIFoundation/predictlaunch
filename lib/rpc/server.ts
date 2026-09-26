@@ -11,6 +11,10 @@ export interface Upstream {
   source: string;
   /** Host only -- never log the path/query, it usually contains the API key. */
   host: string | null;
+  /** True when the configured upstream is an RPC Fast endpoint. */
+  isRpcFast: boolean;
+  /** True when the app is still using a Solana public RPC fallback. */
+  isPublicFallback: boolean;
 }
 
 export function getUpstream(): Upstream {
@@ -29,16 +33,24 @@ export function getUpstream(): Upstream {
     if (process.env.SOLANA_RPC_TESTNET?.trim()) {
       url = process.env.SOLANA_RPC_TESTNET.trim();
       source = "SOLANA_RPC_TESTNET";
-    } else {
-      url = "https://api.testnet.solana.com";
-      source = "public testnet default";
     }
   } else if (process.env.SOLANA_RPC_DEVNET?.trim()) {
     url = process.env.SOLANA_RPC_DEVNET.trim();
     source = "SOLANA_RPC_DEVNET";
-  } else {
-    url = "https://api.devnet.solana.com";
-    source = "public devnet default";
+  }
+
+  // Keep a public fallback for local development, but expose it clearly in diagnostics.
+  if (!url) {
+    if (NETWORK === "mainnet") {
+      url = "https://api.mainnet-beta.solana.com";
+      source = "public mainnet fallback";
+    } else if (NETWORK === "testnet") {
+      url = "https://api.testnet.solana.com";
+      source = "public testnet fallback";
+    } else {
+      url = "https://api.devnet.solana.com";
+      source = "public devnet fallback";
+    }
   }
 
   let host: string | null = null;
@@ -51,7 +63,11 @@ export function getUpstream(): Upstream {
       url = undefined;
     }
   }
-  return { url: url ?? null, source, host };
+
+  const isRpcFast = !!host && (host === "sol.rpcfast.com" || host.endsWith(".rpcfast.com") || host.endsWith(".rpcfast.net"));
+  const isPublicFallback = source.startsWith("public ");
+
+  return { url: url ?? null, source, host, isRpcFast, isPublicFallback };
 }
 
 export interface RpcCallResult {
