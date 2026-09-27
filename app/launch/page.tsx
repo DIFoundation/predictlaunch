@@ -21,7 +21,7 @@ function toLinked(m: PantaMarket): LinkedMarket {
 }
 
 function LaunchForm() {
-  const { publicKey, sendTransaction } = useWallet();
+  const { publicKey, signTransaction } = useWallet();
   const { connection } = useConnection();
   const { ready, blockReason } = useNetwork();
   const searchParams = useSearchParams();
@@ -93,7 +93,7 @@ function LaunchForm() {
   }
 
   function validate(): string | null {
-    if (!publicKey || !sendTransaction) return "Please connect your wallet first";
+    if (!publicKey || !signTransaction) return "Please connect your wallet first";
     if (!ready) return blockReason;
     if (!name.trim() || !symbol.trim()) return "Name and symbol are required";
     if (name.trim().length > 32) return "Token name must be 32 characters or fewer";
@@ -107,7 +107,7 @@ function LaunchForm() {
   async function launchOnChain() {
     const v = validate();
     if (v) return setError(v);
-    if (!publicKey || !sendTransaction) return;
+    if (!publicKey || !signTransaction) return;
     if (IS_MAINNET && !window.confirm(`MAINNET: this creates a real Meteora bonding-curve pool and spends real SOL (account rent + fees).\n\nToken: ${name.trim()} (${symbol.trim().toUpperCase()})\nConviction: ${score}/100\nTrading fee: ${(feeBps / 100).toFixed(2)}%\nLinked markets: ${linkedMarkets.length}\n\nContinue?`)) return;
 
     setBusy(true); setError(null); setResult(null);
@@ -121,7 +121,7 @@ function LaunchForm() {
       setStatus(
         `Simulation passed${simulation.unitsConsumed !== null ? ` · ${simulation.unitsConsumed.toLocaleString()} compute units` : ""}. Signing and submitting from your wallet...`
       );
-      const signature = await sendLaunch(connection, prepared, sendTransaction);
+      const signature = await sendLaunch(connection, prepared, signTransaction);
       const rec: LaunchRecord = {
         mint: prepared.baseMint, pool: prepared.pool, config: prepared.config, signature,
         name: name.trim(), symbol: symbol.trim().toUpperCase(), description: description.trim() || undefined,

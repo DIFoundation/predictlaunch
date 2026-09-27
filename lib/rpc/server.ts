@@ -9,12 +9,22 @@ import { NETWORK } from "@/lib/config/network";
  * source-code edits are required. Mainnet can use RPC Fast while devnet uses
  * the public Solana Devnet RPC.
  */
+const PUBLIC_DEFAULT_HOSTS = new Set(["api.devnet.solana.com", "api.testnet.solana.com", "api.mainnet-beta.solana.com"]);
+
 export interface Upstream {
   url: string | null;
   /** Which env var supplied the URL (for diagnostics). */
   source: string;
   /** Host only -- never log the path/query, it usually contains the API key. */
   host: string | null;
+  /** True when this is one of Solana's rate-limited public endpoints, not a real provider. */
+  isPublicFallback: boolean;
+  /**
+   * True when a real endpoint is configured (not the public fallback). We cannot verify from
+   * the URL alone that it is literally RPC Fast rather than another provider -- this only
+   * distinguishes "you configured something" from "you're on the shared public default".
+   */
+  isRpcFast: boolean;
 }
 
 export function getUpstream(): Upstream {
@@ -52,7 +62,8 @@ export function getUpstream(): Upstream {
       url = undefined;
     }
   }
-  return { url: url ?? null, source, host };
+  const isPublicFallback = host !== null && PUBLIC_DEFAULT_HOSTS.has(host);
+  return { url: url ?? null, source, host, isPublicFallback, isRpcFast: !!url && !isPublicFallback };
 }
 
 export interface RpcCallResult {

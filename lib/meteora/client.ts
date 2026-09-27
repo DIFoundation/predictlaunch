@@ -1,6 +1,6 @@
 import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import { NATIVE_MINT } from "@solana/spl-token";
-import { confirmSignature } from "@/lib/rpc/connection";
+import { sendAndConfirm, type SignTx } from "@/lib/rpc/connection";
 
 /**
  * Meteora Dynamic Bonding Curve launch.
@@ -32,8 +32,9 @@ export interface LaunchParams {
 }
 
 export interface PreparedLaunch {
-  /** Unsigned SDK transaction. wallet-adapter signs it with the two additional signers. */
+  /** Already partially signed by the two fresh keypairs below; only the wallet's signature is missing. */
   tx: Transaction;
+  /** Kept for diagnostics/logging only -- signing already happened in prepareLaunch(). */
   configSigner: Keypair;
   baseMintSigner: Keypair;
   baseMint: string;
@@ -127,9 +128,16 @@ export async function prepareLaunch(
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
   tx.feePayer = params.payer;
   tx.recentBlockhash = blockhash;
-  // Meteora SDK methods return unsigned transactions. Keep the generated
-  // signer keypairs with the prepared launch so wallet-adapter can pass them
-  // through its canonical `sendTransaction(..., { signers })` path.
+  // Meteora SDK methods return unsigned transactions. Sign with our two fresh
+  // keypairs now, so only the wallet's own signature is missing afterwards.
+  // (We deliberately do NOT rely on wallet-adapter's sendTransaction(..., { signers })
+  // path: injected wallets like Phantom broadcast that call through their OWN internal
+  // RPC/cluster config, silently bypassing our /api/rpc relay -- which breaks the
+  // "every read and write goes through our RPC" guarantee and produced a bare
+  // "Unexpected error" from the wallet when its own preflight disagreed with ours.
+  // signTransaction() only asks the wallet to sign; WE broadcast via sendAndConfirm()
+  // below, through the same connection everything else in the app uses.)
+  tx.partialSign(config, baseMint);
 
   const pool = S.deriveDbcPoolAddress(NATIVE_MINT, baseMint.publicKey, config.publicKey);
 
@@ -173,19 +181,29 @@ export async function simulateLaunch(
   return { logs, unitsConsumed: value.unitsConsumed ?? null };
 }
 
-export type SendLaunchTransaction = (
-  transaction: Transaction,
-  connection: Connection,
-  options?: { signers?: Keypair[] }
-) => Promise<string>;
-
 export async function sendLaunch(
   connection: Connection,
   prepared: PreparedLaunch,
-  sendTransaction: SendLaunchTransaction
+  signTransaction: SignTx
 ): Promise<string> {
   if (!prepared.tx.feePayer) throw new Error("Launch transaction has no fee payer.");
   if (!prepared.tx.recentBlockhash) throw new Error("Launch transaction has no recent blockhash.");
+
+  // Guard rail: wallet-adapter's sendTransaction(transaction, connection, options?) declares
+  // 2+ non-defaulted parameters; signTransaction(transaction) declares exactly 1. If the caller
+  // wired up the wrong one, calling it here with a single argument leaves ITS `connection`
+  // parameter undefined, and it crashes deep inside wallet-adapter with a cryptic
+  // "Cannot read properties of undefined (reading 'rpcEndpoint')" -- this catches that mistake
+  // at the boundary instead, with a message that says what to fix and where.
+  if (typeof signTransaction !== "function" || signTransaction.length > 1) {
+    throw new Error(
+      "sendLaunch() was given a function that expects more than one argument -- this looks like " +
+        "wallet-adapter's sendTransaction(tx, connection, options), not signTransaction(tx). " +
+        "In app/launch/page.tsx, destructure `signTransaction` from useWallet() (not `sendTransaction`) " +
+        "and pass that to sendLaunch(). We broadcast the transaction ourselves via our own RPC relay; " +
+        "the wallet should only be asked to sign it."
+    );
+  }
 
   const serializedSize = prepared.tx.serialize({
     requireAllSignatures: false,
@@ -196,7 +214,7 @@ export async function sendLaunch(
     .slice(0, message.header.numRequiredSignatures)
     .map((key) => key.toBase58());
 
-  console.info("Meteora launch wallet submission", {
+  console.info("Meteora launch: asking wallet to sign", {
     serializedSize,
     instructionCount: prepared.tx.instructions.length,
     feePayer: prepared.tx.feePayer.toBase58(),
@@ -205,10 +223,21 @@ export async function sendLaunch(
     baseMintSigner: prepared.baseMintSigner.publicKey.toBase58(),
   });
 
-  const signature = await sendTransaction(prepared.tx, connection, {
-    signers: [prepared.configSigner, prepared.baseMintSigner],
-  });
+  // Ask the wallet ONLY to sign (never to send) -- see the note in prepareLaunch()
+  // for why. We then broadcast + confirm ourselves via our own RPC relay.
+  const signed = await signTransaction(prepared.tx);
 
-  await confirmSignature(connection, signature, prepared.lastValidBlockHeight);
-  return signature;
+  // Second guard rail: signTransaction must return the (signed) transaction object back.
+  // If a mismatched function slipped through the check above and returned something else
+  // (e.g. wallet-adapter's sendTransaction resolves to a signature STRING, not a transaction),
+  // fail clearly here rather than passing garbage into serialize()/sendAndConfirm().
+  if (!signed || typeof (signed as { serialize?: unknown }).serialize !== "function") {
+    throw new Error(
+      "sendLaunch() expected signTransaction() to return a signed transaction object, but got " +
+        `${typeof signed === "string" ? "a string (a transaction signature?)" : typeof signed}. ` +
+        "Check that app/launch/page.tsx passes wallet-adapter's signTransaction, not sendTransaction."
+    );
+  }
+
+  return sendAndConfirm(connection, signed, prepared.lastValidBlockHeight);
 }
