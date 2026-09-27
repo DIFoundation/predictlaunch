@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 /**
- * Server-side Solana RPC relay (RPC Fast). The browser never sees the RPC URL/key
+ * Server-side Solana RPC relay. The browser never sees the RPC URL/key
  * and never talks to the provider directly, which removes origin/CORS/domain-
  * allowlist 403s and stops the key leaking through a NEXT_PUBLIC_ variable.
  *
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
   if (!upstream.url) {
     return rpcError(
       500,
-      "No RPC endpoint configured. Set SOLANA_RPC_MAINNET / SOLANA_RPC_DEVNET (see .env.example)."
+      "No RPC endpoint configured for the selected network. Check the SOLANA_RPC_<NETWORK> value in .env.local; NEXT_PUBLIC_SOLANA_NETWORK is the only network switch."
     );
   }
 

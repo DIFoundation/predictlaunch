@@ -29,7 +29,7 @@
 
 ### Infrastructure
 - Solana wallet connection (Phantom, Solflare)
-- RPC Fast as primary RPC endpoint
+- Network-aware server-side RPC relay (RPC Fast on mainnet; Devnet RPC for testing)
 - Clean dark UI with Tailwind
 
 ## Planned

@@ -2,8 +2,12 @@ import { NETWORK } from "@/lib/config/network";
 
 /**
  * Server-only: resolves the upstream RPC URL for the configured network.
- *   SOLANA_RPC_MAINNET / SOLANA_RPC_DEVNET / SOLANA_RPC_TESTNET  (preferred; NOT exposed to the browser)
- *   NEXT_PUBLIC_RPC_ENDPOINT                 (legacy fallback, mainnet only)
+ *   SOLANA_RPC_MAINNET / SOLANA_RPC_DEVNET / SOLANA_RPC_TESTNET (server-only)
+ *
+ * The active URL is selected ONLY from NEXT_PUBLIC_SOLANA_NETWORK. Changing
+ * that single public setting switches the entire app between clusters; no
+ * source-code edits are required. Mainnet can use RPC Fast while devnet uses
+ * the public Solana Devnet RPC.
  */
 export interface Upstream {
   url: string | null;
@@ -11,10 +15,6 @@ export interface Upstream {
   source: string;
   /** Host only -- never log the path/query, it usually contains the API key. */
   host: string | null;
-  /** True when the configured upstream is an RPC Fast endpoint. */
-  isRpcFast: boolean;
-  /** True when the app is still using a Solana public RPC fallback. */
-  isPublicFallback: boolean;
 }
 
 export function getUpstream(): Upstream {
@@ -25,32 +25,21 @@ export function getUpstream(): Upstream {
     if (process.env.SOLANA_RPC_MAINNET?.trim()) {
       url = process.env.SOLANA_RPC_MAINNET.trim();
       source = "SOLANA_RPC_MAINNET";
-    } else if (process.env.NEXT_PUBLIC_RPC_ENDPOINT?.trim()) {
-      url = process.env.NEXT_PUBLIC_RPC_ENDPOINT.trim();
-      source = "NEXT_PUBLIC_RPC_ENDPOINT (legacy)";
     }
   } else if (NETWORK === "testnet") {
     if (process.env.SOLANA_RPC_TESTNET?.trim()) {
       url = process.env.SOLANA_RPC_TESTNET.trim();
       source = "SOLANA_RPC_TESTNET";
+    } else {
+      url = "https://api.testnet.solana.com";
+      source = "public testnet default";
     }
   } else if (process.env.SOLANA_RPC_DEVNET?.trim()) {
     url = process.env.SOLANA_RPC_DEVNET.trim();
     source = "SOLANA_RPC_DEVNET";
-  }
-
-  // Keep a public fallback for local development, but expose it clearly in diagnostics.
-  if (!url) {
-    if (NETWORK === "mainnet") {
-      url = "https://api.mainnet-beta.solana.com";
-      source = "public mainnet fallback";
-    } else if (NETWORK === "testnet") {
-      url = "https://api.testnet.solana.com";
-      source = "public testnet fallback";
-    } else {
-      url = "https://api.devnet.solana.com";
-      source = "public devnet fallback";
-    }
+  } else {
+    url = "https://api.devnet.solana.com";
+    source = "public devnet default";
   }
 
   let host: string | null = null;
@@ -63,11 +52,7 @@ export function getUpstream(): Upstream {
       url = undefined;
     }
   }
-
-  const isRpcFast = !!host && (host === "sol.rpcfast.com" || host.endsWith(".rpcfast.com") || host.endsWith(".rpcfast.net"));
-  const isPublicFallback = source.startsWith("public ");
-
-  return { url: url ?? null, source, host, isRpcFast, isPublicFallback };
+  return { url: url ?? null, source, host };
 }
 
 export interface RpcCallResult {

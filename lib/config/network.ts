@@ -4,6 +4,9 @@
  * Unset / unrecognised => "devnet" on purpose: the safe default never spends real funds.
  * NOTE: Meteora's DBC program is confirmed on mainnet + devnet; whether it exists on Solana
  * "testnet" is checked live on the /status page (it looks up the program account).
+ *
+ * Network-dependent infrastructure is intentionally resolved from this single
+ * switch. Do not add separate UI/config switches for mainnet vs devnet.
  * NOTE: this value is inlined at BUILD time (NEXT_PUBLIC_): on Vercel set it before deploying
  * and redeploy after changing it.
  */

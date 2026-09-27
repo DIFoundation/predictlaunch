@@ -1,6 +1,6 @@
 import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
 import { NATIVE_MINT } from "@solana/spl-token";
-import { sendAndConfirm, type SignTx } from "@/lib/rpc/connection";
+import { confirmSignature } from "@/lib/rpc/connection";
 
 /**
  * Meteora Dynamic Bonding Curve launch.
@@ -32,8 +32,10 @@ export interface LaunchParams {
 }
 
 export interface PreparedLaunch {
-  /** Partially signed by the two fresh keypairs; still needs the wallet signature. */
+  /** Unsigned SDK transaction. wallet-adapter signs it with the two additional signers. */
   tx: Transaction;
+  configSigner: Keypair;
+  baseMintSigner: Keypair;
   baseMint: string;
   config: string;
   /** Derived DBC pool address (lets us read the pool later without getProgramAccounts). */
@@ -125,12 +127,16 @@ export async function prepareLaunch(
   const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
   tx.feePayer = params.payer;
   tx.recentBlockhash = blockhash;
-  tx.partialSign(config, baseMint);
+  // Meteora SDK methods return unsigned transactions. Keep the generated
+  // signer keypairs with the prepared launch so wallet-adapter can pass them
+  // through its canonical `sendTransaction(..., { signers })` path.
 
   const pool = S.deriveDbcPoolAddress(NATIVE_MINT, baseMint.publicKey, config.publicKey);
 
   return {
     tx,
+    configSigner: config,
+    baseMintSigner: baseMint,
     baseMint: baseMint.publicKey.toBase58(),
     config: config.publicKey.toBase58(),
     pool: pool.toBase58(),
@@ -138,25 +144,71 @@ export async function prepareLaunch(
   };
 }
 
+export interface LaunchSimulationResult {
+  logs: string[];
+  unitsConsumed: number | null;
+}
+
 /** Dry-run on the RPC before asking the user to sign. Throws with program logs on failure. */
-export async function simulateLaunch(connection: Connection, tx: Transaction): Promise<void> {
+export async function simulateLaunch(
+  connection: Connection,
+  tx: Transaction
+): Promise<LaunchSimulationResult> {
+  if (!tx.feePayer) throw new Error("Launch transaction has no fee payer.");
+  if (!tx.recentBlockhash) throw new Error("Launch transaction has no recent blockhash.");
+  if (tx.instructions.length === 0) throw new Error("Launch transaction contains no instructions.");
+
   const vtx = new VersionedTransaction(tx.compileMessage());
   const { value } = await connection.simulateTransaction(vtx, {
     sigVerify: false,
     replaceRecentBlockhash: true,
     commitment: "confirmed",
   });
+  const logs = value.logs ?? [];
   if (value.err) {
-    const logs = (value.logs ?? []).slice(-6).join("\n");
-    throw new Error(`Simulation failed: ${JSON.stringify(value.err)}\n${logs}`);
+    const tail = logs.slice(-12).join("\n");
+    throw new Error(`Simulation failed: ${JSON.stringify(value.err)}${tail ? `\n${tail}` : ""}`);
   }
+
+  return { logs, unitsConsumed: value.unitsConsumed ?? null };
 }
+
+export type SendLaunchTransaction = (
+  transaction: Transaction,
+  connection: Connection,
+  options?: { signers?: Keypair[] }
+) => Promise<string>;
 
 export async function sendLaunch(
   connection: Connection,
   prepared: PreparedLaunch,
-  signTransaction: SignTx
+  sendTransaction: SendLaunchTransaction
 ): Promise<string> {
-  const signed = await signTransaction(prepared.tx);
-  return sendAndConfirm(connection, signed, prepared.lastValidBlockHeight);
+  if (!prepared.tx.feePayer) throw new Error("Launch transaction has no fee payer.");
+  if (!prepared.tx.recentBlockhash) throw new Error("Launch transaction has no recent blockhash.");
+
+  const serializedSize = prepared.tx.serialize({
+    requireAllSignatures: false,
+    verifySignatures: false,
+  }).length;
+  const message = prepared.tx.compileMessage();
+  const requiredSigners = message.accountKeys
+    .slice(0, message.header.numRequiredSignatures)
+    .map((key) => key.toBase58());
+
+  console.info("Meteora launch wallet submission", {
+    serializedSize,
+    instructionCount: prepared.tx.instructions.length,
+    feePayer: prepared.tx.feePayer.toBase58(),
+    requiredSigners,
+    configSigner: prepared.configSigner.publicKey.toBase58(),
+    baseMintSigner: prepared.baseMintSigner.publicKey.toBase58(),
+  });
+
+  const signature = await sendTransaction(prepared.tx, connection, {
+    signers: [prepared.configSigner, prepared.baseMintSigner],
+  });
+
+  await confirmSignature(connection, signature, prepared.lastValidBlockHeight);
+  return signature;
 }

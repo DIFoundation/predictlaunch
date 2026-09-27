@@ -12,7 +12,7 @@ Next.js Frontend (App Router)
 │  (Markets)      │  (Launches)      │  Engine         │
 └─────────────────┴──────────────────┴─────────────────┘
     ↓                   ↓
-RPC Fast (all Solana reads/writes)
+RPC Fast (mainnet); selected Devnet/Testnet RPC for those clusters
 ```
 
 ## Core Flow: Market ↔ Launch
@@ -45,4 +45,4 @@ RPC Fast (all Solana reads/writes)
 
 ## RPC Strategy
 
-The wallet `ConnectionProvider` and every helper resolve the endpoint through `lib/rpc/connection.ts` (`getRpcEndpoint()`), i.e. `NEXT_PUBLIC_RPC_ENDPOINT`. Tip: restrict that key by domain in the RPC Fast dashboard, since `NEXT_PUBLIC_` values ship to the browser. This satisfies the RPC Fast side track requirement.
+The wallet `ConnectionProvider` and every helper resolve the browser endpoint through `lib/rpc/connection.ts` (`getRpcEndpoint()`), which always points to our same-origin `/api/rpc` relay. The relay selects `SOLANA_RPC_MAINNET`, `SOLANA_RPC_DEVNET`, or `SOLANA_RPC_TESTNET` from the single `NEXT_PUBLIC_SOLANA_NETWORK` switch. RPC credentials therefore remain server-side. Mainnet uses the RPC Fast endpoint; devnet can use Solana public Devnet RPC or another server-side provider. Switching `NEXT_PUBLIC_SOLANA_NETWORK` requires no source-code changes.

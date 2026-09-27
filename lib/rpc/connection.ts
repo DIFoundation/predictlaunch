@@ -2,8 +2,9 @@ import { Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
 import { clusterFromGenesis } from "@/lib/config/network";
 
 /**
- * The browser talks to OUR /api/rpc relay, never to the RPC provider directly
- * (the relay forwards to RPC Fast using a server-side URL/key).
+ * The browser talks to OUR /api/rpc relay, never to the RPC provider directly.
+ * The server-side relay selects the RPC URL for the configured network. Mainnet
+ * uses RPC Fast; devnet/testnet can use their configured RPC providers.
  */
 export function getRpcEndpoint(): string {
   if (typeof window !== "undefined") return `${window.location.origin}/api/rpc`;

@@ -7,10 +7,10 @@
 - **Portfolio holdings**: bar chart of token value, computed from data already loaded for the page (no new calls).
 
 ## 1. RPC Fast
-- **Network switch:** `NEXT_PUBLIC_SOLANA_NETWORK=mainnet|devnet|testnet`; endpoints `SOLANA_RPC_MAINNET` / `SOLANA_RPC_DEVNET` / `SOLANA_RPC_TESTNET` (server-side). The value is inlined at build time: set it in Vercel *before* deploying and redeploy after changing it.
+- **Network switch:** `NEXT_PUBLIC_SOLANA_NETWORK=mainnet|devnet|testnet`; endpoints `SOLANA_RPC_MAINNET` / `SOLANA_RPC_DEVNET` / `SOLANA_RPC_TESTNET` (server-side). The application selects exactly one of these from `NEXT_PUBLIC_SOLANA_NETWORK`; switching the network requires changing only that one variable and rebuilding/redeploying. RPC credentials never use `NEXT_PUBLIC_`.
 - **Testnet caveat:** `/status` looks up the Meteora DBC program on the configured cluster and reports if it is not deployed there.
-- **Relay:** browsers call `/api/rpc` (`app/api/rpc/route.ts`), which forwards to RPC Fast. Benefits: the key is never shipped to
-  the client, no origin/CORS/domain-allowlist 403s, and every read/write still goes through RPC Fast. The relay is same-origin only,
+- **Relay:** browsers call `/api/rpc` (`app/api/rpc/route.ts`), which forwards to the selected server-side RPC. Benefits: the key is never shipped to
+  the client, no origin/CORS/domain-allowlist 403s, and mainnet traffic goes through RPC Fast. The relay is same-origin only,
   method-allowlisted, size/batch-limited and rate-limited.
 - **No WebSockets:** confirmation polls `getSignatureStatuses` (`confirmSignature` in `lib/rpc/connection.ts`).
 - **Safety:** `NetworkProvider` reads the genesis hash and blocks transactions if the RPC is on a different cluster than the app setting.

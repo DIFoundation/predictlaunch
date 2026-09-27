@@ -85,7 +85,7 @@ export function NetworkBanner() {
         {state.status === "mismatch" && (
           <span className="text-red-400">
             RPC is on <b>{state.cluster}</b> but the app is set to <b>{network}</b>. Transactions are
-            disabled. Fix SOLANA_RPC_{network.toUpperCase()} — see{" "}
+            disabled. Check the RPC configured for the selected network — see{" "}
             <a href="/status" className="underline">
               /status
             </a>

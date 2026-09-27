@@ -23,7 +23,7 @@ Prediction markets (Panta) act as proof of demand. When those markets show stron
 - Launch tokens on Meteora Dynamic Bonding Curve
 - Link markets → launches to generate a **Conviction Score**
 - Unlock benefits based on conviction level
-- All Solana RPC traffic routed through **RPC Fast**
+- Solana RPC traffic uses the same server-side relay; **RPC Fast is the mainnet provider**
 - Clean portfolio and discovery experience
 
 ---
@@ -36,7 +36,7 @@ Prediction markets (Panta) act as proof of demand. When those markets show stron
 | Wallet             | Solana Wallet Adapter                   |
 | Prediction Markets | Panta API                               |
 | Token Launches     | Meteora Dynamic Bonding Curve SDK       |
-| RPC                | RPC Fast via a server-side relay (`/api/rpc`) |
+| RPC                | Server-side `/api/rpc` relay; RPC Fast on mainnet |
 | Charts              | recharts -- bonding curve, YES price history, portfolio holdings |
 | State              | On-chain / Panta live data; localStorage only caches app metadata |
 
@@ -58,8 +58,8 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ```env
 NEXT_PUBLIC_SOLANA_NETWORK=devnet        # mainnet | devnet | testnet (baked in at build time)
-SOLANA_RPC_MAINNET=...                   # RPC Fast, server-side only
-SOLANA_RPC_DEVNET=...                    # RPC Fast, server-side only
+SOLANA_RPC_MAINNET=...                   # RPC Fast Mainnet endpoint, server-side only
+SOLANA_RPC_DEVNET=...                    # Devnet RPC, server-side only (public default is supported)
 SOLANA_RPC_TESTNET=...                   # optional; DBC availability on testnet is checked at /status
 PANTA_API_KEY=pk_live_...                # server-side only
 PANTA_API_BASE_URL=https://live-api.panta.market/api/v1
@@ -67,14 +67,9 @@ PANTA_API_BASE_URL=https://live-api.panta.market/api/v1
 
 Open `/status` after starting the app to verify the RPC, network and Panta connection.
 
-### RPC Fast configuration
-
-The browser never connects directly to the Solana provider. `app/api/rpc/route.ts` relays allowed JSON-RPC calls server-side using the network-specific `SOLANA_RPC_*` variable. RPC Fast documents the SaaS Solana endpoint as `https://sol.rpcfast.com/<api_key>`. Keep that endpoint in `.env.local` only; never prefix it with `NEXT_PUBLIC_`.
-
-The `/status` page checks the endpoint host, verifies the configured Solana cluster through `getGenesisHash`, checks the Meteora DBC program, and reports whether the app is still using the public Solana fallback.
-
-This project currently runs on **mainnet** with a live Panta key. Devnet and testnet remain fully
-supported by the same `NEXT_PUBLIC_SOLANA_NETWORK` switch -- see `.env.example`.
+The active Solana network is controlled by **one switch**: `NEXT_PUBLIC_SOLANA_NETWORK`.
+Set it to `devnet` for testing or `mainnet` for production. The app automatically selects the
+matching server-side RPC URL; no source-code changes are required when switching networks.
 
 ---
 
@@ -93,7 +88,7 @@ components/                 # Navbar, wallet provider, conviction panel
 lib/
 ├── panta/                  # Panta server client + market normalizer
 ├── meteora/                # Meteora DBC config + transaction builder
-├── rpc/                    # RPC Fast endpoint + cluster detection
+├── rpc/                    # Network-aware RPC relay + cluster detection
 └── conviction/             # Scoring + launch store
 types/                      # Shared TypeScript types
 ```

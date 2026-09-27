@@ -21,7 +21,7 @@ function toLinked(m: PantaMarket): LinkedMarket {
 }
 
 function LaunchForm() {
-  const { publicKey, signTransaction } = useWallet();
+  const { publicKey, sendTransaction } = useWallet();
   const { connection } = useConnection();
   const { ready, blockReason } = useNetwork();
   const searchParams = useSearchParams();
@@ -93,7 +93,7 @@ function LaunchForm() {
   }
 
   function validate(): string | null {
-    if (!publicKey || !signTransaction) return "Please connect your wallet first";
+    if (!publicKey || !sendTransaction) return "Please connect your wallet first";
     if (!ready) return blockReason;
     if (!name.trim() || !symbol.trim()) return "Name and symbol are required";
     if (name.trim().length > 32) return "Token name must be 32 characters or fewer";
@@ -107,7 +107,7 @@ function LaunchForm() {
   async function launchOnChain() {
     const v = validate();
     if (v) return setError(v);
-    if (!publicKey || !signTransaction) return;
+    if (!publicKey || !sendTransaction) return;
     if (IS_MAINNET && !window.confirm(`MAINNET: this creates a real Meteora bonding-curve pool and spends real SOL (account rent + fees).\n\nToken: ${name.trim()} (${symbol.trim().toUpperCase()})\nConviction: ${score}/100\nTrading fee: ${(feeBps / 100).toFixed(2)}%\nLinked markets: ${linkedMarkets.length}\n\nContinue?`)) return;
 
     setBusy(true); setError(null); setResult(null);
@@ -116,9 +116,12 @@ function LaunchForm() {
       const uri = buildMetadataUri(window.location.origin, { name: name.trim(), symbol: symbol.trim().toUpperCase(), description: description.trim() || undefined, imageUrl: imageUrl.trim() || undefined });
       const prepared = await prepareLaunch(connection, { name: name.trim(), symbol: symbol.trim().toUpperCase(), uri, feeBps, payer: publicKey });
       setStatus("Simulating transaction on the RPC...");
-      await simulateLaunch(connection, prepared.tx);
-      setStatus("Simulation passed. Approve the transaction in your wallet...");
-      const signature = await sendLaunch(connection, prepared, signTransaction);
+      const simulation = await simulateLaunch(connection, prepared.tx);
+      console.info("Meteora launch simulation", simulation);
+      setStatus(
+        `Simulation passed${simulation.unitsConsumed !== null ? ` · ${simulation.unitsConsumed.toLocaleString()} compute units` : ""}. Signing and submitting from your wallet...`
+      );
+      const signature = await sendLaunch(connection, prepared, sendTransaction);
       const rec: LaunchRecord = {
         mint: prepared.baseMint, pool: prepared.pool, config: prepared.config, signature,
         name: name.trim(), symbol: symbol.trim().toUpperCase(), description: description.trim() || undefined,
@@ -128,7 +131,13 @@ function LaunchForm() {
       launchStore.add(rec); launchStore.rememberMint(rec.mint); setResult(rec);
       setStatus("Token + bonding curve pool created on-chain!");
     } catch (e) {
-      console.error(e); setError(e instanceof Error ? e.message : "Launch failed"); setStatus(null);
+      console.error("Meteora launch failed", e);
+      const err = e as { message?: unknown; code?: unknown; cause?: { message?: unknown } };
+      const message = typeof err?.message === "string" ? err.message : "Launch failed";
+      const cause = typeof err?.cause?.message === "string" ? `\nWallet/provider detail: ${err.cause.message}` : "";
+      const code = err?.code !== undefined ? ` [code ${String(err.code)}]` : "";
+      setError(`${message}${code}${cause}`);
+      setStatus(null);
     } finally { setBusy(false); }
   }
 
@@ -167,6 +176,12 @@ function LaunchForm() {
         {status && <div className="p-4 rounded-lg bg-violet-500/10 border border-violet-500/30 text-violet-300 text-sm">{status}</div>}
 
         {result && <div className="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-sm space-y-2"><p className="text-emerald-300 font-medium">Launched on-chain</p><p className="text-zinc-400">Conviction <strong>{result.convictionScore}/100</strong> · fee <strong>{(result.feeBps / 100).toFixed(2)}%</strong> · {result.linkedMarketIds.length} linked markets</p><div className="flex flex-wrap gap-4"><Link href={`/launches/${result.mint}`} className="text-violet-300 hover:underline font-medium">Open token page & trade →</Link><a className="text-zinc-400 hover:underline" href={txUrl(result.signature)} target="_blank" rel="noreferrer">Transaction ↗</a></div></div>}
+
+        {!IS_MAINNET && publicKey && (
+          <div className="p-3 rounded-lg border border-sky-500/20 bg-sky-500/5 text-xs text-sky-300">
+            Devnet launch: make sure your wallet is in testnet/development mode with <strong>Solana Devnet</strong> selected. The app RPC and your wallet must use the same network.
+          </div>
+        )}
 
         <button type="button" onClick={launchOnChain} disabled={busy || !publicKey || !ready || unresolvedIds.length > 0 || lookupErrors.length > 0} className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition">{busy ? "Working..." : !publicKey ? "Connect Wallet First" : !ready ? "Waiting for RPC…" : "Launch on Meteora"}</button>
         {publicKey && !ready && blockReason && <p className="text-xs text-red-400">{blockReason}</p>}
