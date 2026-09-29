@@ -7,13 +7,15 @@ import {
 } from "@solana/wallet-adapter-react";
 import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
 import { PhantomWalletAdapter, SolflareWalletAdapter } from "@solana/wallet-adapter-wallets";
-import { getRpcEndpoint } from "@/lib/rpc/connection";
+import { getDirectRpcEndpoint } from "@/lib/rpc/connection";
 
 // Default styles for the wallet modal
 import "@solana/wallet-adapter-react-ui/styles.css";
 
 export function WalletProvider({ children }: { children: ReactNode }) {
-  const endpoint = useMemo(() => getRpcEndpoint(), []);
+  // Use the direct upstream RPC endpoint for wallet adapter
+  // Wallet signing operations require direct RPC access, not the custom relay
+  const endpoint = useMemo(() => getDirectRpcEndpoint(), []);
 
   const wallets = useMemo(
     () => [

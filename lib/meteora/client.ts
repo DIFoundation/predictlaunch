@@ -223,9 +223,23 @@ export async function sendLaunch(
     baseMintSigner: prepared.baseMintSigner.publicKey.toBase58(),
   });
 
+  // Convert legacy Transaction to VersionedTransaction for modern wallet compatibility
+  // Phantom and other modern wallets prefer VersionedTransaction over legacy Transaction
+  const versionedTx = new VersionedTransaction(prepared.tx.compileMessage());
+  // Copy over the partial signatures from the legacy transaction
+  const msg = prepared.tx.compileMessage();
+  const signatures = prepared.tx.signatures;
+  for (let i = 0; i < signatures.length; i++) {
+    const sig = signatures[i];
+    if (sig?.signature) {
+      const publicKey = msg.accountKeys[i];
+      versionedTx.addSignature(publicKey, sig.signature);
+    }
+  }
+
   // Ask the wallet ONLY to sign (never to send) -- see the note in prepareLaunch()
   // for why. We then broadcast + confirm ourselves via our own RPC relay.
-  const signed = await signTransaction(prepared.tx);
+  const signed = await signTransaction(versionedTx);
 
   // Second guard rail: signTransaction must return the (signed) transaction object back.
   // If a mismatched function slipped through the check above and returned something else

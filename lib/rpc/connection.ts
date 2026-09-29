@@ -1,5 +1,5 @@
 import { Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
-import { clusterFromGenesis } from "@/lib/config/network";
+import { clusterFromGenesis, NETWORK } from "@/lib/config/network";
 
 /**
  * The browser talks to OUR /api/rpc relay, never to the RPC provider directly.
@@ -9,6 +9,21 @@ import { clusterFromGenesis } from "@/lib/config/network";
 export function getRpcEndpoint(): string {
   if (typeof window !== "undefined") return `${window.location.origin}/api/rpc`;
   return "http://localhost:3000/api/rpc"; // SSR placeholder; never actually called
+}
+
+/**
+ * Returns the direct upstream RPC endpoint for wallet signing operations.
+ * Wallet adapters require direct RPC access and cannot use the custom relay.
+ * This reads from public env vars: NEXT_PUBLIC_SOLANA_RPC_MAINNET, etc.
+ */
+export function getDirectRpcEndpoint(): string {
+  if (NETWORK === "mainnet") {
+    return process.env.NEXT_PUBLIC_SOLANA_RPC_MAINNET || "https://api.mainnet-beta.solana.com";
+  } else if (NETWORK === "testnet") {
+    return process.env.NEXT_PUBLIC_SOLANA_RPC_TESTNET || "https://api.testnet.solana.com";
+  } else {
+    return process.env.NEXT_PUBLIC_SOLANA_RPC_DEVNET || "https://api.devnet.solana.com";
+  }
 }
 
 let connection: Connection | null = null;
