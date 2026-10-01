@@ -227,10 +227,23 @@ export async function sendLaunch(
     feePayer: prepared.tx.feePayer?.toBase58(),
     blockhash: prepared.tx.recentBlockhash,
     instructionCount: prepared.tx.instructions.length,
-    signatures: prepared.tx.signatures.map((s) => ({
+
+    signatures: prepared.tx.signatures.map((s, index) => ({
+      index,
       publicKey: s.publicKey.toBase58(),
       signed: Boolean(s.signature),
+      signatureLength: s.signature?.length ?? 0,
     })),
+
+    requiredSigners: prepared.tx.instructions.flatMap((ix, ixIndex) =>
+      ix.keys
+        .filter((key) => key.isSigner)
+        .map((key) => ({
+          instruction: ixIndex,
+          publicKey: key.pubkey.toBase58(),
+          isWritable: key.isWritable,
+        })),
+    ),
   });
 
   // Convert legacy Transaction to VersionedTransaction for modern wallet compatibility
