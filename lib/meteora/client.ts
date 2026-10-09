@@ -181,6 +181,41 @@ export async function simulateLaunch(
   return { logs, unitsConsumed: value.unitsConsumed ?? null };
 }
 
+/**
+ * Retries a wallet-extension sign call once when it fails with the tell-tale signature of a
+ * stale extension message port -- a well-known Chrome-extension bug class (seen identically
+ * in MetaMask, Phantom, and others: https://github.com/MetaMask/metamask-extension/issues/11730),
+ * not something our transaction or code caused. It happens when the extension's background
+ * service worker went idle/restarted (or, in `next dev`, after a Fast Refresh) and the page's
+ * connection to it goes stale. The extension itself usually recovers a beat later, which is why
+ * a short-delay retry (rather than surfacing the first failure) fixes most real cases. This is a
+ * no-op for wallets that don't hit the bug (e.g. Solflare) -- it only ever retries on this one
+ * specific error signature, never on a genuine rejection or validation failure.
+ */
+async function signWithRetryForStalePort(signTransaction: SignTx, tx: Transaction): Promise<Transaction> {
+  try {
+    return await signTransaction(tx);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    const looksLikeStalePort = /disconnected port|unexpected error/i.test(msg);
+    if (!looksLikeStalePort) throw e;
+
+    console.warn("Wallet sign call failed with a stale-connection error; retrying once...", msg);
+    await new Promise((r) => setTimeout(r, 800));
+    try {
+      return await signTransaction(tx);
+    } catch (e2) {
+      const msg2 = e2 instanceof Error ? e2.message : String(e2);
+      throw new Error(
+        `Your wallet extension's connection to its background service appears to be stale ` +
+          `(a known Phantom/Chrome issue, especially after this page was hot-reloaded or left open a while). ` +
+          `Please fully reload the page (not just retry in place) and try again. ` +
+          `Original error: ${msg2}`
+      );
+    }
+  }
+}
+
 export async function sendLaunch(
   connection: Connection,
   prepared: PreparedLaunch,
@@ -218,51 +253,22 @@ export async function sendLaunch(
     serializedSize,
     instructionCount: prepared.tx.instructions.length,
     feePayer: prepared.tx.feePayer.toBase58(),
+    blockhash: prepared.tx.recentBlockhash,
     requiredSigners,
     configSigner: prepared.configSigner.publicKey.toBase58(),
     baseMintSigner: prepared.baseMintSigner.publicKey.toBase58(),
-  });
-
-  console.info("Meteora launch transaction diagnostics", {
-    feePayer: prepared.tx.feePayer?.toBase58(),
-    blockhash: prepared.tx.recentBlockhash,
-    instructionCount: prepared.tx.instructions.length,
-
+    // Per-slot view of which signatures are already present (config + baseMint, via
+    // partialSign in prepareLaunch) vs. still missing (the wallet's own).
     signatures: prepared.tx.signatures.map((s, index) => ({
       index,
       publicKey: s.publicKey.toBase58(),
       signed: Boolean(s.signature),
-      signatureLength: s.signature?.length ?? 0,
     })),
-
-    requiredSigners: prepared.tx.instructions.flatMap((ix, ixIndex) =>
-      ix.keys
-        .filter((key) => key.isSigner)
-        .map((key) => ({
-          instruction: ixIndex,
-          publicKey: key.pubkey.toBase58(),
-          isWritable: key.isWritable,
-        })),
-    ),
   });
-
-  // Convert legacy Transaction to VersionedTransaction for modern wallet compatibility
-  // Phantom and other modern wallets prefer VersionedTransaction over legacy Transaction
-  // const versionedTx = new VersionedTransaction(prepared.tx.compileMessage());
-  // Copy over the partial signatures from the legacy transaction
-  // const msg = prepared.tx.compileMessage();
-  // const signatures = prepared.tx.signatures;
-  // for (let i = 0; i < signatures.length; i++) {
-  //   const sig = signatures[i];
-  //   if (sig?.signature) {
-  //     const publicKey = msg.accountKeys[i];
-  //     versionedTx.addSignature(publicKey, sig.signature);
-  //   }
-  // }
 
   // Ask the wallet ONLY to sign (never to send) -- see the note in prepareLaunch()
   // for why. We then broadcast + confirm ourselves via our own RPC relay.
-  const signed = await signTransaction(prepared.tx);
+  const signed = await signWithRetryForStalePort(signTransaction, prepared.tx);
 
   // Second guard rail: signTransaction must return the (signed) transaction object back.
   // If a mismatched function slipped through the check above and returned something else

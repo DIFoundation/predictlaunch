@@ -77,12 +77,17 @@ async function readMetadata(mints: PublicKey[], c: SdkClient) {
   const out = new Map<string, { name: string; symbol: string }>();
   const pdas = mints.map((m) => S.deriveMintMetadata(m));
   for (let i = 0; i < pdas.length; i += 90) {
-    const infos = await conn.getMultipleAccountsInfo(pdas.slice(i, i + 90));
-    infos.forEach((info, j) => {
-      if (!info) return;
-      const md = parseTokenMetadata(info.data);
-      if (md) out.set(mints[i + j].toBase58(), { name: md.name, symbol: md.symbol });
-    });
+    try {
+      const infos = await conn.getMultipleAccountsInfo(pdas.slice(i, i + 90));
+      infos.forEach((info, j) => {
+        if (!info) return;
+        const md = parseTokenMetadata(info.data);
+        if (md) out.set(mints[i + j].toBase58(), { name: md.name, symbol: md.symbol });
+      });
+    } catch {
+      // A name/symbol is a nicety (the UI falls back to "Unnamed"/"?"); one failed batch
+      // should never take down the whole page.
+    }
   }
   return out;
 }
@@ -168,26 +173,51 @@ export async function loadPoolByMint(
   return { ...v, name: md?.name, symbol: md?.symbol };
 }
 
+/**
+ * `pools` is already fully decoded from a single getProgramAccounts call (poolState.quoteReserve
+ * is part of that data, no extra round trip needed), so we sort/cap it to `limit` BEFORE doing any
+ * further per-pool network calls. Without this, a network with many pools (Meteora's DBC program
+ * is shared infrastructure -- other apps' launches live on it too, not just this one's) would
+ * fire one getPoolConfig + one metadata lookup per pool, easily hundreds of extra round trips
+ * through our relay, which is what was timing out / rate-limiting itself into the "Explore" page's
+ * 500s -- not the single initial getProgramAccounts call.
+ */
 async function viewsFromPools(
   S: Awaited<ReturnType<typeof loadSdk>>,
   c: SdkClient,
-  pools: ProgramAccount<PoolAccount>[]
+  pools: ProgramAccount<PoolAccount>[],
+  limit?: number
 ): Promise<PoolView[]> {
   if (pools.length === 0) return [];
 
-  const configKeys = [...new Set(pools.map((p) => p.account.poolState.config.toBase58()))];
+  const capped =
+    limit !== undefined
+      ? pools.slice().sort((a, b) => b.account.poolState.quoteReserve.cmp(a.account.poolState.quoteReserve)).slice(0, limit)
+      : pools;
+
+  const configKeys = [...new Set(capped.map((p) => p.account.poolState.config.toBase58()))];
   const configs = new Map<string, PoolConfig>();
   await Promise.all(
     configKeys.map(async (k) => {
-      const cfg = await c.state.getPoolConfig(k);
-      if (cfg) configs.set(k, cfg);
+      try {
+        const cfg = await c.state.getPoolConfig(k);
+        if (cfg) configs.set(k, cfg);
+      } catch {
+        // Skip pools whose config we can't read rather than failing the whole page over one.
+      }
     })
   );
 
   const views: PoolView[] = [];
-  for (const p of pools) {
+  for (const p of capped) {
     const cfg = configs.get(p.account.poolState.config.toBase58());
-    if (cfg) views.push(view(S, p.publicKey, p.account, cfg));
+    if (cfg) {
+      try {
+        views.push(view(S, p.publicKey, p.account, cfg));
+      } catch {
+        // Same: one malformed pool shouldn't sink the rest.
+      }
+    }
   }
   const md = await readMetadata(views.map((v) => new PublicKey(v.mint)), c);
   return views
@@ -209,8 +239,7 @@ export async function loadPoolsByCreator(conn: Connection, creator: PublicKey): 
 export async function loadAllPools(conn: Connection, limit = 60): Promise<PoolView[]> {
   const { S, c } = await client(conn);
   const pools = await c.state.getPools();
-  const views = await viewsFromPools(S, c, pools);
-  return views.slice(0, limit);
+  return viewsFromPools(S, c, pools, limit);
 }
 
 /** Wallet balance of one token (UI units). */
