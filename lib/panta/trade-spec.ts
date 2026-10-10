@@ -25,17 +25,19 @@ export interface BuyInput {
   wallet: string;
   marketId: string;
   side: Side;
-  /** Human USDC, e.g. 5 = five dollars. (Create-quote returns `paymentUsdc: 50` in this same unit.) */
+  /** Human USDC, e.g. 5 = five dollars. Serialized as a 2-decimal string for Panta. */
   amountUsdc: number;
 }
 
 export const TRADE_SPEC = {
-  // GUESS: field names + lowercase side. `marketId` / `wallet` match the rest of Panta's API.
+  // Field names are confirmed by Panta's validation response. Send amountUsdc as a
+  // decimal string (e.g. "5.00"), matching Panta's published quote request format.
+  // Side remains lowercase ("yes" | "no") as accepted by Panta's quote interface.
   quote: (i: BuyInput) => ({
     wallet: i.wallet,
     marketId: i.marketId,
     side: i.side,
-    amountUsdc: i.amountUsdc,
+    amountUsdc: i.amountUsdc.toFixed(2),
   }),
 
   // Documented: built "from a quoteId". `wallet` is sent too in case the server binds it.
