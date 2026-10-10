@@ -75,6 +75,22 @@ export const pantaServer = {
     return pantaFetch(`/markets/${qs ? `?${qs}` : ""}`);
   },
 
+  /**
+   * Prefer filtering at Panta before downloading the catalog. If this API version
+   * rejects the status parameter, fall back to the ordinary list and let the
+   * caller apply the same lifecycle filter locally.
+   */
+  async listActiveMarkets(params?: { limit?: number; category?: string }) {
+    try {
+      return await this.listMarkets({ ...params, status: "active" });
+    } catch (error) {
+      if (error instanceof PantaError && (error.status === 400 || error.status === 422)) {
+        return this.listMarkets(params);
+      }
+      throw error;
+    }
+  },
+
   getMarket(marketId: string) {
     return pantaFetch(`/markets/${encodeURIComponent(marketId)}/`);
   },
