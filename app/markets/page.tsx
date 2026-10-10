@@ -84,7 +84,7 @@ export default async function MarketsPage() {
             <Link key={m.marketId} href={`/markets/${m.marketId}`} className="group rounded-2xl border border-zinc-800/90 bg-zinc-900/35 p-5 transition duration-200 hover:-translate-y-0.5 hover:border-emerald-400/35 hover:bg-zinc-900/75">
               <div className="flex items-start gap-4">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-zinc-700/70 bg-zinc-800">
-                  {m.imageUrl ? <img src={m.imageUrl} alt="" className="h-full w-full object-cover" /> : <BarChart3 size={18} className="text-emerald-300" />}
+                  <BarChart3 size={18} className="text-emerald-300" />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
