@@ -109,6 +109,7 @@ export default async function MarketsPage() {
               </div>
               <div className="mt-4 flex items-center justify-between border-t border-zinc-800/80 pt-3 text-xs text-zinc-500">
                 <span>Volume <strong className="ml-1 font-medium text-zinc-300">${m.volumeUsdc.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong></span>
+                <span>Closing on <strong className="ml-1 font-medium text-zinc-300">{m.endTime ? new Date(m.endTime * 1000).toLocaleDateString() : 'N/A'}</strong></span>
                 <span className="capitalize">{m.phase}</span>
               </div>
             </Link>

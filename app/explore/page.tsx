@@ -163,6 +163,7 @@ export default function ExplorePage() {
         disabled={!ready}
         className="inline-flex items-center gap-2 rounded-xl border border-zinc-700/80 bg-zinc-900/50 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-emerald-300/25 disabled:opacity-50"
       >
+        <RefreshCw className="w-4 h-4" />
         Refresh markets
       </button>
     </div>

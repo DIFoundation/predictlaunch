@@ -96,7 +96,7 @@ export default async function MarketDetailPage({ params }: Props) {
         <p className="text-xs text-zinc-600 mt-3 break-all">ID: {market.marketId}</p>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-5">
         <div className={stat}>
           <p className="text-xs text-zinc-500">Category</p>
           <p className="font-medium capitalize mt-1">{market.category}</p>
@@ -113,6 +113,18 @@ export default async function MarketDetailPage({ params }: Props) {
           <p className="text-xs text-zinc-500">YES price</p>
           <p className="font-medium mt-1">
             {market.yesPrice === null ? "No live price" : `${Math.round(market.yesPrice * 100)}%`}
+          </p>
+        </div>
+        <div className={`${stat} md:col-span-2 lg:hidden`}>
+          <p className="text-xs text-zinc-500">Resolved</p>
+          <p className="font-medium mt-1">
+            {market.resolved ? "Yes" : "No"}
+          </p>
+        </div>
+        <div className={`${stat} md:col-span-2 lg:col-span-1`}>
+          <p className="text-xs text-zinc-500">Market close</p>
+          <p className="font-medium mt-1">
+            {market.endTime ? new Date(market.endTime * 1000).toLocaleString() : "N/A"}
           </p>
         </div>
       </div>

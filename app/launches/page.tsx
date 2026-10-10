@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Rocket } from "lucide-react";
+import { Rocket } from "lucide-react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { loadPoolByMint, loadPoolsByCreator, type PoolView } from "@/lib/meteora/pools";
@@ -100,8 +100,11 @@ export default function LaunchesPage() {
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <h3 className="font-semibold text-lg transition group-hover:text-emerald-200">
-                    {p.name || rec?.name || "Unnamed"} <span className="text-zinc-500 font-normal">(${p.symbol || rec?.symbol || "?"})</span>
+                  <h3 className="font-semibold text-lg transition group-hover:text-emerald-200 flex items-center gap-2">
+                    <Rocket /> 
+                    <p className="">
+                      {p.name || rec?.name || "Unnamed"} <span className="text-zinc-500 font-normal">(${p.symbol || rec?.symbol || "?"})</span>
+                    </p>
                   </h3>
                   <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-sm text-zinc-400">
                     <span>Price {p.priceSol.toPrecision(3)} SOL</span>
