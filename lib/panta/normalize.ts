@@ -146,6 +146,7 @@ export function isActiveMarket(market: PantaMarket, nowSeconds = Math.floor(Date
   if (market.resolved === true) return false;
   if (market.endTime !== undefined && market.endTime <= nowSeconds) return false;
   const phase = market.phase.trim().toLowerCase().replace(/[ _-]+/g, "");
-  const terminal = new Set(["resolved", "closed", "ended", "finalized", "settled", "expired", "cancelled", "canceled", "complete", "completed"]);
+  const inactive = new Set(["resolved", "closed", "ended", "finalized", "settled", "expired", "cancelled", "canceled", "complete", "completed", "pending", "scheduled", "upcoming", "draft", "inactive", "paused", "suspended"]);
+  const terminal = inactive;
   return !terminal.has(phase);
 }
