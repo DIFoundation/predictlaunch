@@ -1,47 +1,102 @@
 "use client";
 
-import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { WalletMultiButton } from "@solana/wallet-adapter-react-ui";
+import { Activity, ArrowLeftRight, Compass, FlaskConical, Layers3, Rocket, Sparkles, Wallet } from "lucide-react";
 
-const LINKS = [
-  { href: "/markets", label: "Markets" },
-  { href: "/explore", label: "Explore" },
-  { href: "/launches", label: "My Launches" },
-  { href: "/portfolio", label: "Portfolio" },
-  { href: "/create", label: "Create Market" },
-  { href: "/launch", label: "Launch Token" },
+const GROUPS = [
+  {
+    label: "Trade",
+    links: [
+      { href: "/markets", label: "Markets", icon: Layers3 },
+      { href: "/explore", label: "Explore", icon: Compass },
+    ],
+  },
+  {
+    label: "Your assets",
+    links: [
+      { href: "/portfolio", label: "Portfolio", icon: Wallet },
+      { href: "/launches", label: "My launches", icon: Rocket },
+    ],
+  },
+  {
+    label: "Build",
+    links: [
+      { href: "/launch", label: "Launch token", icon: Sparkles },
+      { href: "/create", label: "Create market", icon: FlaskConical },
+    ],
+  },
 ];
 
 export function Navbar() {
+  const pathname = usePathname();
+  const isActive = (href: string) => pathname === href || (href !== "/" && pathname.startsWith(`${href}/`));
+
   return (
-    <nav className="border-b border-zinc-800 bg-zinc-950/80 backdrop-blur sticky top-0 z-50">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-8">
-          <Link href="/" className="font-bold text-xl tracking-tight">
-            PredictLaunch
+    <header className="sticky top-0 z-50 border-b border-white/[0.07] bg-zinc-950/90 backdrop-blur-xl">
+      <nav aria-label="Main navigation" className="mx-auto max-w-7xl px-3 sm:px-5">
+        <div className="flex h-[68px] items-center justify-between gap-3">
+          <Link href="/" className="group flex shrink-0 items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-300/20 bg-emerald-300/[0.08] text-emerald-300 transition group-hover:bg-emerald-300/[0.14]">
+              <ArrowLeftRight size={18} strokeWidth={2.2} />
+            </span>
+            <span className="leading-tight">
+              <span className="block text-[15px] font-semibold tracking-tight text-white">Predict<span className="text-emerald-300">Launch</span></span>
+              <span className="hidden text-[10px] tracking-[0.16em] text-zinc-500 sm:block">SIGNAL → ON-CHAIN</span>
+            </span>
           </Link>
-          <div className="hidden md:flex items-center gap-6 text-sm text-zinc-400">
-            {LINKS.map((l) => (
-              <Link key={l.href} href={l.href} className="hover:text-white transition">
-                {l.label}
-              </Link>
+
+          <div className="hidden items-center gap-1 lg:flex">
+            {GROUPS.map((group) => (
+              <div key={group.label} className="flex items-center gap-1">
+                <span className="mx-2 text-[9px] font-semibold uppercase tracking-[0.16em] text-zinc-600">{group.label}</span>
+                {group.links.map(({ href, label, icon: Icon }) => {
+                  const active = isActive(href);
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      aria-current={active ? "page" : undefined}
+                      className={`inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[12px] font-medium transition ${active ? "bg-emerald-300/[0.1] text-emerald-200" : "text-zinc-400 hover:bg-white/[0.045] hover:text-zinc-100"}`}
+                    >
+                      <Icon size={14} />
+                      {label}
+                    </Link>
+                  );
+                })}
+                {group.label !== "Build" && <span className="mx-2 h-5 w-px bg-white/[0.07]" />}
+              </div>
             ))}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-2">
+            <Link href="/status" aria-label="System status" title="System status" className={`hidden h-9 w-9 items-center justify-center rounded-xl border transition sm:inline-flex ${isActive("/status") ? "border-emerald-300/30 bg-emerald-300/10 text-emerald-200" : "border-white/[0.08] text-zinc-400 hover:border-white/20 hover:text-white"}`}>
+              <Activity size={16} />
+            </Link>
+            <WalletMultiButton className="!h-10 !rounded-xl !border !border-emerald-300/20 !bg-emerald-300/[0.09] !px-3 !text-xs !font-semibold !text-emerald-100 hover:!bg-emerald-300/[0.16]" />
           </div>
         </div>
 
-        <WalletMultiButton className="bg-violet-600! hover:bg-violet-500! rounded-lg! h-10!" />
-      </div>
-
-      {/* The desktop links are hidden below md -- without this row there was NO navigation on phones. */}
-      <div className="md:hidden border-t border-zinc-800/60 overflow-x-auto">
-        <div className="flex gap-5 px-4 py-2.5 text-sm text-zinc-400 whitespace-nowrap">
-          {LINKS.map((l) => (
-            <Link key={l.href} href={l.href} className="hover:text-white transition">
-              {l.label}
-            </Link>
-          ))}
+        <div className="flex gap-1 overflow-x-auto border-t border-white/[0.055] py-2 lg:hidden">
+          {GROUPS.flatMap((group) => group.links).map(({ href, label, icon: Icon }) => {
+            const active = isActive(href);
+            return (
+              <Link
+                key={href}
+                href={href}
+                aria-current={active ? "page" : undefined}
+                className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition ${active ? "bg-emerald-300/[0.1] text-emerald-200" : "text-zinc-400 hover:bg-white/[0.04] hover:text-white"}`}
+              >
+                <Icon size={13} />{label}
+              </Link>
+            );
+          })}
+          <Link href="/status" className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition ${isActive("/status") ? "bg-emerald-300/[0.1] text-emerald-200" : "text-zinc-500 hover:text-white"}`}>
+            <Activity size={13} /> Status
+          </Link>
         </div>
-      </div>
-    </nav>
+      </nav>
+    </header>
   );
 }

@@ -1,4 +1,5 @@
 import { runDiagnostics } from "@/lib/status";
+import { CheckCircle2, CircleAlert } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -7,9 +8,9 @@ export default async function StatusPage() {
   const allOk = checks.every((c) => c.ok);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="mx-auto max-w-4xl space-y-7">
       <div>
-        <h1 className="text-3xl font-bold">System status</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">System status</h1>
         <p className="text-zinc-400 mt-1">
           Live checks from the server for <b>{network}</b>. No secrets are shown.
         </p>
@@ -25,11 +26,11 @@ export default async function StatusPage() {
         {allOk ? "All checks passed." : "Some checks failed — details below."}
       </div>
 
-      <ul className="space-y-3">
+      <ul className="grid gap-3 md:grid-cols-2">
         {checks.map((c) => (
-          <li key={c.name} className="p-4 rounded-lg border border-zinc-800 bg-zinc-900/40">
+          <li key={c.name} className="rounded-2xl border border-zinc-800/90 bg-zinc-900/40 p-5">
             <div className="flex items-center gap-2">
-              <span className={c.ok ? "text-emerald-400" : "text-red-400"}>{c.ok ? "✓" : "✗"}</span>
+              <span className={c.ok ? "text-emerald-300" : "text-red-400"}>{c.ok ? <CheckCircle2 size={17} /> : <CircleAlert size={17} />}</span>
               <span className="font-medium">{c.name}</span>
             </div>
             <p className="text-sm text-zinc-400 mt-1 wrap-break-words">{c.detail}</p>

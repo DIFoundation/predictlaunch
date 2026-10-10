@@ -1,95 +1,78 @@
 import Link from "next/link";
+import { ArrowDownRight, ArrowRight, BarChart3, CheckCircle2, Layers3, Rocket, Sparkles, Zap } from "lucide-react";
+
+const STEPS = [
+  { number: "01", icon: BarChart3, title: "Read the signal", text: "Explore active prediction markets and track YES/NO probabilities, volume, and market conviction." },
+  { number: "02", icon: Layers3, title: "Build conviction", text: "Aggregate market breadth, consensus, and volume quality into a transparent score." },
+  { number: "03", icon: Rocket, title: "Launch on-chain", text: "Use conviction to configure a Meteora Dynamic Bonding Curve launch on Solana." },
+];
 
 export default function HomePage() {
   return (
-    <div className="space-y-16">
-      {/* Hero */}
-      <section className="pt-8 pb-4">
-        <h1 className="text-4xl md:text-5xl font-bold tracking-tight max-w-3xl leading-tight">
-          The launchpad where{" "}
-          <span className="text-violet-400">conviction</span> is measurable.
-        </h1>
-        <p className="mt-6 text-lg text-zinc-400 max-w-2xl">
-          Communities create prediction markets about a token’s future. High
-          conviction unlocks better launches on Meteora Dynamic Bonding Curve.
-        </p>
-
-        <div className="flex flex-wrap gap-4 mt-8">
-          <Link
-            href="/markets"
-            className="px-6 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 font-medium transition"
-          >
-            Explore Markets
-          </Link>
-          <Link
-            href="/launch"
-            className="px-6 py-3 rounded-lg border border-zinc-700 hover:border-zinc-500 font-medium transition"
-          >
-            Launch a Token
-          </Link>
+    <div className="space-y-20 pb-8">
+      <section className="relative isolate overflow-hidden rounded-[2rem] border border-emerald-300/15 bg-zinc-950 px-6 py-12 sm:px-10 sm:py-16 lg:px-14">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.19),transparent_40%),radial-gradient(ellipse_at_bottom_left,rgba(139,92,246,0.12),transparent_42%)]" />
+        <div className="pointer-events-none absolute right-[-5rem] top-[-5rem] -z-10 h-80 w-80 rounded-full border border-emerald-300/[0.08] sm:h-[26rem] sm:w-[26rem]" />
+        <div className="grid items-center gap-10 lg:grid-cols-[1.2fr_0.8fr]">
+          <div>
+            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-emerald-300/20 bg-emerald-300/[0.06] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-200">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_12px_rgba(110,231,183,.8)]" /> Solana signal launchpad
+            </div>
+            <h1 className="max-w-3xl text-4xl font-semibold leading-[1.08] tracking-[-0.045em] sm:text-5xl lg:text-6xl">
+              Turn market conviction into <span className="text-emerald-300">on-chain momentum.</span>
+            </h1>
+            <p className="mt-6 max-w-2xl text-sm leading-7 text-zinc-400 sm:text-base">
+              PredictLaunch connects prediction-market signals to token launches. Read the market, understand the conviction score, then launch a token on Meteora DBC.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href="/markets" className="inline-flex items-center gap-2 rounded-xl bg-emerald-300 px-5 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-200">Explore markets <ArrowRight size={16} /></Link>
+              <Link href="/launch" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-semibold text-zinc-200 transition hover:border-emerald-300/30 hover:bg-white/[0.06]">Launch a token <ArrowDownRight size={16} /></Link>
+            </div>
+            <div className="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-xs text-zinc-500">
+              <span className="inline-flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-300" /> Explainable conviction</span>
+              <span className="inline-flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-300" /> Solana-native</span>
+              <span className="inline-flex items-center gap-2"><CheckCircle2 size={14} className="text-emerald-300" /> User-signed transactions</span>
+            </div>
+          </div>
+          <div className="mx-auto w-full max-w-md">
+            <div className="rounded-3xl border border-white/[0.08] bg-black/35 p-4 shadow-2xl shadow-emerald-950/20">
+              <div className="flex items-center justify-between border-b border-white/[0.07] pb-4">
+                <div><p className="text-xs text-zinc-500">CONVICTION ENGINE</p><p className="mt-1 font-semibold">Market signal</p></div>
+                <span className="rounded-lg border border-emerald-300/20 bg-emerald-300/[0.07] p-2 text-emerald-200"><Zap size={18} /></span>
+              </div>
+              <div className="py-6">
+                <div className="flex items-end justify-between"><span className="text-sm text-zinc-400">Illustrative score</span><span className="text-4xl font-semibold tracking-tight tabular-nums">61<span className="text-lg text-zinc-500">/100</span></span></div>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-zinc-800"><div className="h-full w-[61%] rounded-full bg-gradient-to-r from-emerald-500 to-lime-300" /></div>
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  <div className="rounded-xl border border-emerald-300/15 bg-emerald-300/[0.045] p-3"><p className="text-[10px] uppercase tracking-wider text-emerald-300">YES signal</p><p className="mt-1 text-lg font-semibold">Market-led</p></div>
+                  <div className="rounded-xl border border-white/[0.07] bg-white/[0.025] p-3"><p className="text-[10px] uppercase tracking-wider text-zinc-500">Launch venue</p><p className="mt-1 text-lg font-semibold">Meteora DBC</p></div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between border-t border-white/[0.07] pt-4 text-xs text-zinc-500"><span>Signal → conviction → launch</span><Sparkles size={14} className="text-emerald-300" /></div>
+            </div>
+            <p className="mt-3 text-center text-[10px] text-zinc-600">Illustrative interface preview · not live market data</p>
+          </div>
         </div>
       </section>
 
-      {/* How it works */}
       <section>
-        <h2 className="text-2xl font-semibold mb-8">How it works</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="p-6 rounded-xl border border-zinc-800 bg-zinc-900/40">
-            <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center text-violet-400 font-bold mb-4">
-              1
+        <div className="mb-7 flex items-end justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300">The workflow</p><h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">From signal to launch</h2></div><span className="hidden text-xs text-zinc-500 sm:block">Three clear steps</span></div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {STEPS.map(({ number, icon: Icon, title, text }) => (
+            <div key={number} className="group rounded-2xl border border-white/[0.07] bg-zinc-900/35 p-5 transition hover:border-emerald-300/20 hover:bg-zinc-900/65 sm:p-6">
+              <div className="flex items-center justify-between"><span className="text-xs font-mono text-zinc-600">{number}</span><span className="rounded-xl border border-emerald-300/15 bg-emerald-300/[0.06] p-2.5 text-emerald-200"><Icon size={18} /></span></div>
+              <h3 className="mt-6 font-semibold">{title}</h3><p className="mt-2 text-sm leading-6 text-zinc-400">{text}</p>
             </div>
-            <h3 className="font-semibold mb-2">Create a Market</h3>
-            <p className="text-sm text-zinc-400">
-              Ask a clear question about a future token or milestone. Powered by
-              Panta.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-xl border border-zinc-800 bg-zinc-900/40">
-            <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center text-violet-400 font-bold mb-4">
-              2
-            </div>
-            <h3 className="font-semibold mb-2">Build Conviction</h3>
-            <p className="text-sm text-zinc-400">
-              Traders buy YES or NO. Volume and probability become a public
-              signal of demand.
-            </p>
-          </div>
-
-          <div className="p-6 rounded-xl border border-zinc-800 bg-zinc-900/40">
-            <div className="w-10 h-10 rounded-lg bg-violet-500/20 flex items-center justify-center text-violet-400 font-bold mb-4">
-              3
-            </div>
-            <h3 className="font-semibold mb-2">Launch Better</h3>
-            <p className="text-sm text-zinc-400">
-              High conviction unlocks improved Meteora DBC parameters and
-              priority access.
-            </p>
-          </div>
+          ))}
         </div>
       </section>
 
-      {/* Tracks */}
-      <section className="pb-8">
-        <h2 className="text-2xl font-semibold mb-4">Built for the Crypto World’s Fair</h2>
-        <p className="text-zinc-400 mb-6 max-w-2xl">
-          PredictLaunch is designed to compete across multiple side tracks:
-          Superteam Nigeria, Panta API, Meteora DBC, and RPC Fast.
-        </p>
-        <div className="flex flex-wrap gap-3 text-sm">
-          <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-300">
-            Superteam Nigeria
-          </span>
-          <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-300">
-            Panta API
-          </span>
-          <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-300">
-            Meteora DBC
-          </span>
-          <span className="px-3 py-1 rounded-full bg-zinc-800 text-zinc-300">
-            RPC Fast
-          </span>
+      <section className="rounded-3xl border border-white/[0.07] bg-zinc-900/30 p-6 sm:p-8">
+        <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+          <div><p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Built for the Crypto World&apos;s Fair</p><h2 className="mt-2 text-xl font-semibold">Markets, conviction, and Solana infrastructure.</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-400">Panta market data, Meteora Dynamic Bonding Curve launches, and RPC Fast connectivity through one server-side relay.</p></div>
+          <Link href="/status" className="inline-flex shrink-0 items-center gap-2 self-start rounded-xl border border-white/10 px-4 py-3 text-sm font-medium text-zinc-200 transition hover:border-emerald-300/25 sm:self-center">System status <ArrowRight size={15} /></Link>
         </div>
+        <div className="mt-6 flex flex-wrap gap-2 text-[11px] font-medium text-zinc-400">{["Solana", "Panta API", "Meteora DBC", "RPC Fast"].map((name) => <span key={name} className="rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2">{name}</span>)}</div>
       </section>
     </div>
   );

@@ -201,8 +201,8 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
   const h = quote ? headline(quote) : null;
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-zinc-800">
+    <div className="overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/80 shadow-xl shadow-black/10">
+      <div className="flex items-center justify-between border-b border-zinc-800/90 bg-zinc-900/60 px-5 py-4">
         <h2 className="font-semibold">Trade</h2>
         <span className="text-xs text-zinc-500">Powered by Panta</span>
       </div>
@@ -264,7 +264,7 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
             }}
             placeholder="5.00"
             disabled={busy || secondary}
-            className="w-full px-4 py-3 rounded-lg bg-zinc-950 border border-zinc-700 focus:outline-none focus:border-violet-500"
+            className="w-full rounded-xl border border-zinc-700/80 bg-zinc-950 px-4 py-3 text-sm outline-none transition focus:border-emerald-300/60 focus:ring-2 focus:ring-emerald-300/10"
           />
           {price !== null && amountNum > 0 && (
             <p className="text-xs text-zinc-500 mt-1.5">≈ {(amountNum / price).toFixed(2)} shares at the current {Math.round(price * 100)}¢ (Panta&apos;s quote is authoritative)</p>
@@ -316,7 +316,7 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
             type="button"
             onClick={getQuote}
             disabled={busy || !publicKey || !ready || !PANTA_WRITES_ENABLED || secondary || !amount}
-            className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+            className="w-full rounded-xl bg-emerald-300 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? "Working..." : !publicKey ? "Connect Wallet First" : `Get quote to buy ${side.toUpperCase()}`}
           </button>
@@ -326,11 +326,11 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
               type="button"
               onClick={confirmBuy}
               disabled={busy}
-              className={`py-3 rounded-lg font-medium transition disabled:opacity-50 ${side === "yes" ? "bg-emerald-600 hover:bg-emerald-500" : "bg-rose-600 hover:bg-rose-500"}`}
+              className={`rounded-xl py-3 font-semibold text-zinc-950 transition disabled:opacity-50 ${side === "yes" ? "bg-emerald-300 hover:bg-emerald-200" : "bg-rose-400 hover:bg-rose-300"}`}
             >
               {busy ? "Working..." : `Confirm buy ${side.toUpperCase()}`}
             </button>
-            <button type="button" onClick={reset} disabled={busy} className="py-3 rounded-lg border border-zinc-700 hover:border-zinc-500 disabled:opacity-50">
+            <button type="button" onClick={reset} disabled={busy} className="rounded-xl border border-zinc-700 px-3 py-3 text-sm text-zinc-300 transition hover:border-zinc-500 disabled:opacity-50">
               Cancel
             </button>
           </div>

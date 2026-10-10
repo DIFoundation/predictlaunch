@@ -158,12 +158,12 @@ export default function CreateMarketPage() {
   }
 
   const inputCls =
-    "w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500";
+    "w-full rounded-xl border border-zinc-700/80 bg-zinc-950/80 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-emerald-300/60 focus:ring-2 focus:ring-emerald-300/10";
 
   return (
-    <div className="max-w-xl mx-auto space-y-8">
+    <div className="mx-auto max-w-2xl space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Create Market</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Create Market</h1>
         <p className="text-zinc-400 mt-2">
           Create a prediction market · <span className="text-zinc-300">Powered by Panta</span>
         </p>
@@ -181,7 +181,7 @@ export default function CreateMarketPage() {
         exact fee from Panta and must confirm before anything is signed.
       </div>
 
-      <form onSubmit={handleQuote} className="space-y-6">
+      <form onSubmit={handleQuote} className="space-y-5 rounded-2xl border border-zinc-800/90 bg-zinc-900/30 p-5 sm:p-6">
         <div>
           <label className="block text-sm font-medium mb-2">Question *</label>
           <input
@@ -255,7 +255,7 @@ export default function CreateMarketPage() {
           <button
             type="submit"
             disabled={busy || !publicKey || !PANTA_WRITES_ENABLED || !ready}
-            className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+            className="w-full rounded-xl bg-emerald-300 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? "Working..." : publicKey ? "Get Quote" : "Connect Wallet First"}
           </button>
@@ -263,7 +263,7 @@ export default function CreateMarketPage() {
       </form>
 
       {quote && (
-        <div className="p-5 rounded-xl border border-zinc-700 bg-zinc-900/60 space-y-4">
+        <div className="space-y-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/50 p-5">
           <div>
             <p className="text-sm text-zinc-400">Panta quote</p>
             <p className="text-2xl font-bold mt-1">
@@ -278,7 +278,7 @@ export default function CreateMarketPage() {
             <button
               onClick={handleConfirm}
               disabled={busy}
-              className="py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 font-medium transition"
+              className="rounded-xl bg-emerald-300 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-200 disabled:opacity-50"
             >
               {busy ? "Working..." : "Confirm & Sign"}
             </button>
@@ -289,7 +289,7 @@ export default function CreateMarketPage() {
                 setError(null);
               }}
               disabled={busy}
-              className="py-3 rounded-lg border border-zinc-700 hover:border-zinc-500 disabled:opacity-50 transition"
+              className="rounded-xl border border-zinc-700 px-4 py-3 text-sm text-zinc-300 transition hover:border-zinc-500 disabled:opacity-50"
             >
               Cancel
             </button>

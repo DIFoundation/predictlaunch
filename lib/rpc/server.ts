@@ -63,7 +63,7 @@ export function getUpstream(): Upstream {
     }
   }
   const isPublicFallback = host !== null && PUBLIC_DEFAULT_HOSTS.has(host);
-  return { url: url ?? null, source, host, isPublicFallback, isRpcFast: !!url && !isPublicFallback };
+  return { url: url ?? null, source, host, isPublicFallback, isRpcFast: !!url && host !== null && host.toLowerCase().endsWith("rpcfast.com") };
 }
 
 export interface RpcCallResult {

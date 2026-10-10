@@ -69,7 +69,7 @@ export function TokenTradePanel({
 
   if (pool.isMigrated) {
     return (
-      <div className="p-5 rounded-xl border border-zinc-800 bg-zinc-900/40 text-sm text-zinc-400">
+      <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/40 p-5 text-sm text-zinc-400">
         This token has graduated from its bonding curve and now trades on Meteora DAMM v2. In-app curve
         trading is closed for it.
       </div>
@@ -165,8 +165,8 @@ export function TokenTradePanel({
   }
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
-      <div className="grid grid-cols-2 border-b border-zinc-800">
+    <div className="overflow-hidden rounded-2xl border border-zinc-800/90 bg-zinc-950/80 shadow-xl shadow-black/10">
+      <div className="grid grid-cols-2 border-b border-zinc-800/90 bg-zinc-900/60">
         {(["buy", "sell"] as Side[]).map((s) => (
           <button
             key={s}
@@ -212,7 +212,7 @@ export function TokenTradePanel({
             }}
             placeholder="0.0"
             disabled={busy}
-            className="w-full px-4 py-3 rounded-lg bg-zinc-950 border border-zinc-700 focus:outline-none focus:border-violet-500"
+            className="w-full rounded-xl border border-zinc-700/80 bg-zinc-950 px-4 py-3 text-sm outline-none transition focus:border-emerald-300/60 focus:ring-2 focus:ring-emerald-300/10"
           />
         </div>
 
@@ -271,7 +271,7 @@ export function TokenTradePanel({
           <button
             onClick={getQuote}
             disabled={busy || !publicKey || !ready || !amount}
-            className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition"
+            className="w-full rounded-xl bg-emerald-300 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? "Working..." : !publicKey ? "Connect Wallet First" : "Get quote"}
           </button>

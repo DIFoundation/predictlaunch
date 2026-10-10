@@ -141,16 +141,16 @@ function LaunchForm() {
     } finally { setBusy(false); }
   }
 
-  const inputCls = "w-full px-4 py-3 rounded-lg bg-zinc-900 border border-zinc-700 focus:outline-none focus:border-violet-500";
+  const inputCls = "w-full rounded-xl border border-zinc-700/80 bg-zinc-950/80 px-4 py-3 text-sm text-zinc-100 outline-none transition placeholder:text-zinc-600 focus:border-emerald-300/60 focus:ring-2 focus:ring-emerald-300/10";
 
   return (
-    <div className="max-w-2xl mx-auto space-y-8">
+    <div className="mx-auto max-w-3xl space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Launch Token</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Launch Token</h1>
         <p className="text-zinc-400 mt-2">Measure demand across prediction markets, then use the resulting conviction to configure your Meteora bonding curve.</p>
       </div>
 
-      <div className="space-y-6">
+      <div className="space-y-5 rounded-2xl border border-zinc-800/90 bg-zinc-900/30 p-5 sm:p-6">
         <div><label className="block text-sm font-medium mb-2">Token Name *</label><input className={inputCls} value={name} maxLength={32} onChange={(e) => setName(e.target.value)} placeholder="PredictLaunch Token" disabled={busy} /></div>
         <div><label className="block text-sm font-medium mb-2">Symbol *</label><input className={inputCls} value={symbol} maxLength={10} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="PLT" disabled={busy} /></div>
         <div><label className="block text-sm font-medium mb-2">Description</label><textarea className={inputCls} rows={3} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="What is this token about?" disabled={busy} /></div>
@@ -183,7 +183,7 @@ function LaunchForm() {
           </div>
         )}
 
-        <button type="button" onClick={launchOnChain} disabled={busy || !publicKey || !ready || unresolvedIds.length > 0 || lookupErrors.length > 0} className="w-full py-3 rounded-lg bg-violet-600 hover:bg-violet-500 disabled:opacity-50 disabled:cursor-not-allowed font-medium transition">{busy ? "Working..." : !publicKey ? "Connect Wallet First" : !ready ? "Waiting for RPC…" : "Launch on Meteora"}</button>
+        <button type="button" onClick={launchOnChain} disabled={busy || !publicKey || !ready || unresolvedIds.length > 0 || lookupErrors.length > 0} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-300 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50">{busy ? "Working..." : !publicKey ? "Connect Wallet First" : !ready ? "Waiting for RPC…" : "Launch on Meteora"}</button>
         {publicKey && !ready && blockReason && <p className="text-xs text-red-400">{blockReason}</p>}
       </div>
     </div>
