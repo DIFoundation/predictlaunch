@@ -17,7 +17,7 @@ export default async function MarketsPage() {
   try {
     // Ask Panta for active markets upstream, then keep the local lifecycle guard
     // as a defensive check against stale/inconsistent catalog rows.
-    const data = await pantaServer.listMarkets({ limit: 50, status: "active" });
+    const data = await pantaServer.listActiveMarkets({ limit: 50 });
     markets = extractMarketList(data).map(normalizeMarket).filter(isActiveMarket);
   } catch (err) {
     error = err instanceof Error ? err.message : "Failed to load markets";
