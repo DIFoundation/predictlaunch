@@ -19,13 +19,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="dark">
-      <body className={`${inter.className} bg-zinc-950 text-zinc-50 min-h-screen`}>
+      <body className={`${inter.className} min-h-screen bg-[#09090b] text-zinc-50 antialiased selection:bg-emerald-300/25 selection:text-emerald-50`}>
         <WalletProvider>
           <NetworkProvider>
           <Navbar />
           <NetworkBanner />
-          <main className="max-w-6xl mx-auto px-4 py-8">{children}</main>
-          <footer className="max-w-6xl mx-auto px-4 py-8 text-xs text-zinc-600 border-t border-zinc-900">
+          <main className="mx-auto max-w-7xl px-4 py-7 sm:px-5 sm:py-9">{children}</main>
+          <footer className="mx-auto mt-8 max-w-7xl border-t border-white/[0.06] px-4 py-8 text-xs text-zinc-600 sm:px-5">
             Prediction markets <span className="text-zinc-400">Powered by Panta</span> · Launches on
             Meteora Dynamic Bonding Curve · RPC by RPC Fast
           </footer>
