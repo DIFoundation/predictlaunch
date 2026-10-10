@@ -58,10 +58,10 @@ export default function PortfolioPage() {
       const poolAddr = new Map<string, string>(Object.entries(knownPools));
       records.forEach((r) => poolAddr.set(r.mint, r.pool));
 
-      // Avoid mint-only pool discovery: the SDK fallback can issue a broad
-      // getProgramAccounts scan. Only inspect tokens for which this browser
-      // knows the exact pool address.
-      const tracked = mints.filter((mint) => poolAddr.has(mint));
+      // Prefer exact pool addresses from this browser's history. For older
+      // remembered mints without a saved pool address, retain the SDK's
+      // mint-filtered lookup, but keep the total list and concurrency bounded.
+      const tracked = mints;
       const rows: (Holding | null)[] = [];
       let next = 0;
       const worker = async () => {
