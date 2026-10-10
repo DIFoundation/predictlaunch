@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ArrowUpRight, RefreshCw } from "lucide-react";
 import { useConnection } from "@solana/wallet-adapter-react";
@@ -8,7 +8,7 @@ import { useNetwork } from "@/components/network/NetworkProvider";
 import { loadPoolByMint, type PoolView } from "@/lib/meteora/pools";
 import { launchStore } from "@/lib/conviction/store";
 
-const MAX_TRACKED_LAUNCHES = 8;
+const MAX_TRACKED_LAUNCHES = 200;
 const LOAD_CONCURRENCY = 2;
 
 export default function ExplorePage() {
@@ -19,8 +19,36 @@ export default function ExplorePage() {
     launchStore.getSnapshot,
     launchStore.getServerSnapshot
   );
+  const [remoteRecords, setRemoteRecords] = useState<import("@/types/conviction").LaunchRecord[]>([]);
+  const [registryError, setRegistryError] = useState<string | null>(null);
   const [pools, setPools] = useState<PoolView[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/launches?limit=200")
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : `Directory request failed (${res.status})`);
+        return data;
+      })
+      .then((data) => {
+        if (!alive) return;
+        setRemoteRecords(Array.isArray(data.items) ? data.items : []);
+        setRegistryError(null);
+      })
+      .catch((e) => {
+        if (alive) setRegistryError(e instanceof Error ? e.message : "Shared directory unavailable");
+      });
+    return () => { alive = false; };
+  }, []);
+
+  const allRecords = useMemo(() => {
+    const merged = new Map<string, import("@/types/conviction").LaunchRecord>();
+    for (const record of remoteRecords) merged.set(record.mint, record);
+    for (const record of records) merged.set(record.mint, record);
+    return Array.from(merged.values()).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  }, [remoteRecords, records]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -29,7 +57,7 @@ export default function ExplorePage() {
     // Only read pool addresses that this browser already knows from successful
     // PredictLaunch launches. Never scan Meteora's shared DBC program globally:
     // getPools() can return tens of MB and exhaust RPC provider limits.
-    const candidates = records.slice(0, MAX_TRACKED_LAUNCHES);
+    const candidates = allRecords.slice(0, MAX_TRACKED_LAUNCHES);
     if (candidates.length === 0) {
       setPools([]);
       return;
@@ -83,7 +111,7 @@ export default function ExplorePage() {
       );
     }
     setPools(active.sort((a, b) => b.quoteReserveSol - a.quoteReserveSol));
-  }, [connection, records]);
+  }, [connection, allRecords]);
 
   useEffect(() => {
     if (!ready) return;
@@ -99,11 +127,16 @@ export default function ExplorePage() {
       <div>
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Explore</h1>
         <p className="text-zinc-400 mt-1">
-          Active bonding-curve markets tracked by PredictLaunch on this browser.
+          Active bonding-curve tokens created through PredictLaunch, shared across users and devices.
         </p>
       </div>
 
       {!ready && <p className="text-zinc-500 text-sm">{blockReason}</p>}
+      {registryError && (
+        <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm wrap-break-words">
+          Shared launch directory unavailable: {registryError}. Only launches saved in this browser may be shown.
+        </div>
+      )}
       {error && (
         <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-sm wrap-break-words">
           {error}
@@ -114,8 +147,7 @@ export default function ExplorePage() {
       )}
       {pools && pools.length === 0 && !error && (
         <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-6 text-sm text-zinc-400">
-          No active tracked markets found. Launch a token from this browser or
-          open a token you launched previously to add it to your tracked list.
+          No active bonding-curve tokens found for this network yet.
         </div>
       )}
 
