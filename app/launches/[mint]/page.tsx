@@ -27,7 +27,28 @@ export default function TokenPage({ params }: { params: Promise<{ mint: string }
   const { ready, blockReason } = useNetwork();
 
   const records = useSyncExternalStore(launchStore.subscribe, launchStore.getSnapshot, launchStore.getServerSnapshot);
-  const record = records.find((r) => r.mint === mint);
+  const localRecord = records.find((r) => r.mint === mint);
+  const [sharedRecord, setSharedRecord] = useState<typeof localRecord>(undefined);
+
+  useEffect(() => {
+    if (localRecord) return;
+    let alive = true;
+    fetch("/api/launches?limit=200")
+      .then(async (res) => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "Shared directory unavailable");
+        return data;
+      })
+      .then((data) => {
+        if (!alive || !Array.isArray(data.items)) return;
+        const found = data.items.find((item: { mint?: string }) => item.mint === mint);
+        if (found) setSharedRecord(found);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [mint, localRecord]);
+
+  const record = localRecord ?? sharedRecord;
   const poolHint = record?.pool;
 
   const [pool, setPool] = useState<PoolView | null>(null);
