@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { pantaServer } from "@/lib/panta/server";
-import { extractMarketList, normalizeMarket } from "@/lib/panta/normalize";
+import { extractMarketList, isActiveMarket, normalizeMarket } from "@/lib/panta/normalize";
 import type { PantaMarket } from "@/types/panta";
 
 // Without this Next prerenders the page at BUILD time and freezes whatever
@@ -13,7 +13,7 @@ export default async function MarketsPage() {
 
   try {
     const data = await pantaServer.listMarkets({ limit: 30 });
-    markets = extractMarketList(data).map(normalizeMarket);
+    markets = extractMarketList(data).map(normalizeMarket).filter(isActiveMarket);
   } catch (err) {
     error = err instanceof Error ? err.message : "Failed to load markets";
   }
