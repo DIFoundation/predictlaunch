@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { ArrowUpRight, Compass, RefreshCw } from "lucide-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { loadPoolByMint, type PoolView } from "@/lib/meteora/pools";
@@ -94,9 +95,9 @@ export default function ExplorePage() {
   }, [ready, load]);
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
       <div>
-        <h1 className="text-3xl font-bold">Explore</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Explore</h1>
         <p className="text-zinc-400 mt-1">
           Active bonding-curve markets tracked by PredictLaunch on this browser.
         </p>
@@ -118,16 +119,16 @@ export default function ExplorePage() {
         </div>
       )}
 
-      <div className="grid gap-4">
+      <div className="grid gap-3 sm:grid-cols-2">
         {pools?.map((p) => (
           <Link
             key={p.pool}
             href={`/launches/${p.mint}`}
-            className="block p-5 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition"
+            className="group block rounded-2xl border border-zinc-800/90 bg-zinc-900/35 p-5 transition hover:border-emerald-300/25 hover:bg-zinc-900/65"
           >
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
-                <h3 className="font-semibold text-lg">
+                <h3 className="font-semibold text-lg transition group-hover:text-emerald-200">
                   {p.name || "Unnamed"}{" "}
                   <span className="text-zinc-500 font-normal">
                     (${p.symbol || "?"})
@@ -150,7 +151,7 @@ export default function ExplorePage() {
                   </span>
                 </div>
               </div>
-              <span className="shrink-0 text-xs text-emerald-400">Active</span>
+              <span className="inline-flex shrink-0 items-center gap-1.5 text-xs text-emerald-300"><span className="h-1.5 w-1.5 rounded-full bg-emerald-300" /> Active <ArrowUpRight size={14} /></span>
             </div>
           </Link>
         ))}
@@ -160,7 +161,7 @@ export default function ExplorePage() {
         type="button"
         onClick={() => void load()}
         disabled={!ready}
-        className="rounded-lg border border-zinc-700 px-4 py-2 text-sm text-zinc-300 hover:border-zinc-500 disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-xl border border-zinc-700/80 bg-zinc-900/50 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-emerald-300/25 disabled:opacity-50"
       >
         Refresh markets
       </button>
