@@ -66,10 +66,11 @@ function defaultImageUrl(): string {
 }
 
 export const pantaServer = {
-  listMarkets(params?: { limit?: number; category?: string }) {
+  listMarkets(params?: { limit?: number; category?: string; status?: "active" | "inactive" | "all" }) {
     const q = new URLSearchParams();
     if (params?.limit) q.set("limit", String(params.limit));
     if (params?.category) q.set("category", params.category);
+    if (params?.status) q.set("status", params.status);
     const qs = q.toString();
     return pantaFetch(`/markets/${qs ? `?${qs}` : ""}`);
   },
