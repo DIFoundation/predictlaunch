@@ -152,7 +152,10 @@ async function resolvePool(
   if (poolAddress) {
     const key = new PublicKey(poolAddress);
     const account = await c.state.getPool(key);
-    if (account && account.poolState.baseMint.equals(mintKey)) return { publicKey: key, account };
+    // A supplied pool address is authoritative. Do not fall back to
+    // getPoolByBaseMint, which may issue a broad getProgramAccounts scan.
+    if (!account || !account.poolState.baseMint.equals(mintKey)) return null;
+    return { publicKey: key, account };
   }
   return c.state.getPoolByBaseMint(mintKey);
 }
