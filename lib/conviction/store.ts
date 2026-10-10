@@ -8,11 +8,14 @@ import { LaunchRecord } from "@/types/conviction";
  */
 const KEY = "predictlaunch:launches:v2";
 const MINTS_KEY = "predictlaunch:mints:v1";
+const POOLS_KEY = "predictlaunch:pools:v1";
 const EMPTY: LaunchRecord[] = [];
 const EMPTY_MINTS: string[] = [];
+const EMPTY_POOLS: Record<string, string> = {};
 
 let cache: LaunchRecord[] | null = null;
 let mintsCache: string[] | null = null;
+let poolsCache: Record<string, string> | null = null;
 const listeners = new Set<() => void>();
 
 function readJson<T>(key: string, fallback: T): T {
@@ -41,7 +44,8 @@ if (typeof window !== "undefined") {
   window.addEventListener("storage", (e) => {
     if (e.key === KEY) cache = null;
     if (e.key === MINTS_KEY) mintsCache = null;
-    if (e.key === KEY || e.key === MINTS_KEY) emit();
+    if (e.key === POOLS_KEY) poolsCache = null;
+    if (e.key === KEY || e.key === MINTS_KEY || e.key === POOLS_KEY) emit();
   });
 }
 
@@ -64,6 +68,7 @@ export const launchStore = {
     const next = [launch, ...this.getSnapshot().filter((l) => l.mint !== launch.mint)];
     cache = next;
     write(KEY, next);
+    this.rememberPool(launch.mint, launch.pool);
     emit();
   },
 
@@ -80,6 +85,24 @@ export const launchStore = {
     if (cur.includes(mint)) return;
     mintsCache = [mint, ...cur].slice(0, 50);
     write(MINTS_KEY, mintsCache);
+    emit();
+  },
+
+  getPoolsSnapshot(): Record<string, string> {
+    if (poolsCache === null) poolsCache = readJson(POOLS_KEY, EMPTY_POOLS);
+    return poolsCache;
+  },
+  getPoolsServerSnapshot(): Record<string, string> {
+    return EMPTY_POOLS;
+  },
+  rememberPool(mint: string, pool: string) {
+    const current = this.getPoolsSnapshot();
+    if (current[mint] === pool) return;
+    poolsCache = { ...current, [mint]: pool };
+    // Keep this small; the most recent 50 token/pool pairs are enough for portfolio tracking.
+    const entries = Object.entries(poolsCache).slice(-50);
+    poolsCache = Object.fromEntries(entries);
+    write(POOLS_KEY, poolsCache);
     emit();
   },
 };
