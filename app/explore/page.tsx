@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { ArrowUpRight, RefreshCw } from "lucide-react";
 import { useConnection } from "@solana/wallet-adapter-react";
@@ -43,12 +43,12 @@ export default function ExplorePage() {
     return () => { alive = false; };
   }, []);
 
-  const allRecords = (() => {
+  const allRecords = useMemo(() => {
     const merged = new Map<string, import("@/types/conviction").LaunchRecord>();
     for (const record of remoteRecords) merged.set(record.mint, record);
     for (const record of records) merged.set(record.mint, record);
     return Array.from(merged.values()).sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
-  })();
+  }, [remoteRecords, records]);
 
   const load = useCallback(async () => {
     setError(null);
