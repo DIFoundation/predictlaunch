@@ -43,6 +43,7 @@ export default function TokenPage({ params }: { params: Promise<{ mint: string }
         const p = await loadPoolByMint(connection, mint, poolHint);
         if (!alive) return;
         if (!p) return setState("missing");
+        launchStore.rememberPool(mint, p.pool);
         setPool(p);
         setState("ok");
       } catch (e) {
