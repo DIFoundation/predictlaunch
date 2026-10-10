@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { Coins, Wallet } from "lucide-react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { PublicKey } from "@solana/web3.js";
 import { PANTA_WRITES_ENABLED, txUrl } from "@/lib/config/network";
@@ -154,9 +155,9 @@ export default function PortfolioPage() {
   const totalValue = holdings?.reduce((s, h) => s + h.valueSol, 0) ?? 0;
 
   return (
-    <div className="space-y-10">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Portfolio</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Portfolio</h1>
         <p className="text-zinc-400 mt-1">Everything you hold, read live from Solana and Panta</p>
       </div>
 
@@ -166,14 +167,14 @@ export default function PortfolioPage() {
 
       {publicKey && ready && (
         <>
-          <div className="grid grid-cols-2 gap-4 max-w-md">
-            <div className="p-4 rounded-lg bg-zinc-900 border border-zinc-800">
-              <p className="text-xs text-zinc-500">SOL balance</p>
-              <p className="font-medium mt-1">{sol === null ? "—" : sol.toFixed(4)}</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/45 p-5">
+              <p className="flex items-center gap-2 text-xs text-zinc-500"><Wallet size={14} className="text-emerald-300" /> SOL balance</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">{sol === null ? "—" : sol.toFixed(4)} <span className="text-xs font-medium text-zinc-500">SOL</span></p>
             </div>
-            <div className="p-4 rounded-lg bg-zinc-900 border border-zinc-800">
-              <p className="text-xs text-zinc-500">Launched-token value</p>
-              <p className="font-medium mt-1">{holdings === null ? "—" : `${totalValue.toFixed(4)} SOL`}</p>
+            <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/45 p-5">
+              <p className="flex items-center gap-2 text-xs text-zinc-500"><Coins size={14} className="text-emerald-300" /> Launched-token value</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums">{holdings === null ? "—" : totalValue.toFixed(4)} <span className="text-xs font-medium text-zinc-500">SOL</span></p>
             </div>
           </div>
 
@@ -191,7 +192,7 @@ export default function PortfolioPage() {
             )}
             <div className="grid gap-3">
               {holdings?.map((h) => (
-                <Link key={h.pool.mint} href={`/launches/${h.pool.mint}`} className="flex items-center justify-between p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition">
+                <Link key={h.pool.mint} href={`/launches/${h.pool.mint}`} className="group flex items-center justify-between gap-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/35 p-4 transition hover:border-emerald-300/25 hover:bg-zinc-900/70">
                   <div>
                     <p className="font-medium">
                       {h.pool.name || "Unnamed"} <span className="text-zinc-500">(${h.pool.symbol || "?"})</span>
@@ -221,7 +222,7 @@ export default function PortfolioPage() {
             <div className="grid gap-3">
               {positions?.map((p, i) => (
                 <div key={`${p.marketId}-${i}`}>
-                <Link href={`/markets/${p.marketId}`} className="block p-4 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition">
+                <Link href={`/markets/${p.marketId}`} className="block rounded-2xl border border-zinc-800/90 bg-zinc-900/35 p-4 transition hover:border-emerald-300/25 hover:bg-zinc-900/70">
                   <p className="font-medium line-clamp-2">{p.market?.title ?? `Market ${p.marketId.slice(0, 8)}…`}</p>
                   <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-sm text-zinc-400">
                     <span className="uppercase">{p.side ?? "—"}</span>
