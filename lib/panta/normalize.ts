@@ -59,6 +59,7 @@ export function normalizeMarket(raw: PantaMarketRaw): PantaMarket {
     noPrice: no,
     imageUrl: raw.images?.[0] || undefined,
     endTime: toUnixSeconds(raw.endTime),
+    resolved: raw.resolved,
   };
 }
 
@@ -133,4 +134,18 @@ export function extractCategories(data: unknown): { value: string; label: string
     }
   }
   return out;
+}
+
+
+/**
+ * Hide markets that are explicitly closed/resolved or whose end time has passed.
+ * Unknown phase values remain visible unless the API supplies a definitive terminal
+ * state, avoiding accidental removal when Panta introduces a new active phase label.
+ */
+export function isActiveMarket(market: PantaMarket, nowSeconds = Math.floor(Date.now() / 1000)): boolean {
+  if (market.resolved === true) return false;
+  if (market.endTime !== undefined && market.endTime <= nowSeconds) return false;
+  const phase = market.phase.trim().toLowerCase().replace(/[ _-]+/g, "");
+  const terminal = new Set(["resolved", "closed", "ended", "finalized", "settled", "expired", "cancelled", "canceled", "complete", "completed"]);
+  return !terminal.has(phase);
 }
