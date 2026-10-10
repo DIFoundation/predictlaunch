@@ -36,6 +36,7 @@ export default function PortfolioPage() {
   const { ready, blockReason } = useNetwork();
   const records = useSyncExternalStore(launchStore.subscribe, launchStore.getSnapshot, launchStore.getServerSnapshot);
   const seen = useSyncExternalStore(launchStore.subscribe, launchStore.getMintsSnapshot, launchStore.getMintsServerSnapshot);
+  const knownPools = useSyncExternalStore(launchStore.subscribe, launchStore.getPoolsSnapshot, launchStore.getPoolsServerSnapshot);
 
   const [sol, setSol] = useState<number | null>(null);
   const [holdings, setHoldings] = useState<Holding[] | null>(null);
@@ -53,21 +54,36 @@ export default function PortfolioPage() {
     // 1) SOL + token holdings (live balances; token list = launches + tokens traded in this app)
     try {
       setSol((await connection.getBalance(publicKey)) / 1e9);
-      const mints = [...new Set([...records.map((r) => r.mint), ...seen])];
-      const poolAddr = new Map(records.map((r) => [r.mint, r.pool]));
-      const rows = await Promise.all(
-        mints.map(async (mint): Promise<Holding | null> => {
+      const mints = [...new Set([...records.map((r) => r.mint), ...seen])].slice(0, 20);
+      const poolAddr = new Map<string, string>(Object.entries(knownPools));
+      records.forEach((r) => poolAddr.set(r.mint, r.pool));
+
+      // Avoid mint-only pool discovery: the SDK fallback can issue a broad
+      // getProgramAccounts scan. Only inspect tokens for which this browser
+      // knows the exact pool address.
+      const tracked = mints.filter((mint) => poolAddr.has(mint));
+      const rows: (Holding | null)[] = [];
+      let next = 0;
+      const worker = async () => {
+        while (true) {
+          const index = next++;
+          if (index >= tracked.length) return;
+          const mint = tracked[index];
           try {
             const pool = await loadPoolByMint(connection, mint, poolAddr.get(mint));
-            if (!pool) return null;
+            if (!pool) {
+              rows[index] = null;
+              continue;
+            }
             const raw = await tokenBalance(connection, new PublicKey(publicKey), mint);
             const balance = raw / 10 ** pool.decimals;
-            return { pool, balance, valueSol: balance * pool.priceSol };
+            rows[index] = { pool, balance, valueSol: balance * pool.priceSol };
           } catch {
-            return null;
+            rows[index] = null;
           }
-        })
-      );
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(2, tracked.length) }, () => worker()));
       setHoldings(rows.filter((r): r is Holding => !!r && r.balance > 0));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -97,7 +113,7 @@ export default function PortfolioPage() {
       setPosError(e instanceof Error ? e.message : String(e));
       setPositions([]);
     }
-  }, [connection, publicKey, records, seen]);
+  }, [connection, publicKey, records, seen, knownPools]);
 
   useEffect(() => {
     if (!ready || !publicKey) return;
