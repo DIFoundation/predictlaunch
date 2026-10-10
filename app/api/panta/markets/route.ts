@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 /** Normalized live market list (used by the launch page's market picker). */
 export async function GET() {
   try {
-    const data = await pantaServer.listMarkets({ limit: 50 });
+    const data = await pantaServer.listMarkets({ limit: 50, status: "active" });
     const items = extractMarketList(data).map(normalizeMarket).filter(isActiveMarket);
     return NextResponse.json({ items });
   } catch (err) {
