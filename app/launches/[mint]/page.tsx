@@ -2,6 +2,7 @@
 
 import { use, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { TokenTradePanel } from "@/components/trade/TokenTradePanel";
@@ -12,7 +13,7 @@ import { levelForScore } from "@/lib/conviction/score";
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="p-4 rounded-lg bg-zinc-900 border border-zinc-800">
+    <div className="rounded-2xl border border-zinc-800/90 bg-zinc-900/45 p-4">
       <p className="text-xs text-zinc-500">{label}</p>
       <p className="font-medium mt-1 wrap-break-words">{value}</p>
       {sub && <p className="text-xs text-zinc-500 mt-0.5">{sub}</p>}
@@ -61,10 +62,8 @@ export default function TokenPage({ params }: { params: Promise<{ mint: string }
   }, [ready, connection, mint, poolHint, reloadTick]);
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
-      <Link href="/launches" className="text-sm text-zinc-400 hover:text-white">
-        ← Back to Launches
-      </Link>
+    <div className="space-y-7">
+      <Link href="/launches" className="inline-flex items-center gap-2 text-sm text-zinc-400 transition hover:text-white"><ArrowLeft size={15} /> My launches</Link>
 
       {!ready && <p className="text-zinc-500 text-sm">{blockReason}</p>}
       {ready && state === "loading" && <p className="text-zinc-500 text-sm">Reading pool from the chain…</p>}
@@ -88,7 +87,7 @@ export default function TokenPage({ params }: { params: Promise<{ mint: string }
       {pool && (
         <>
           <div>
-            <h1 className="text-3xl font-bold">
+            <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
               {pool.name || record?.name || "Unnamed token"}{" "}
               <span className="text-zinc-500 font-normal">(${pool.symbol || record?.symbol || "?"})</span>
             </h1>
@@ -109,7 +108,7 @@ export default function TokenPage({ params }: { params: Promise<{ mint: string }
             )}
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Stat label="Price" value={`${pool.priceSol.toPrecision(4)} SOL`} />
             <Stat label="Market cap" value={`${pool.marketCapSol.toLocaleString(undefined, { maximumFractionDigits: 2 })} SOL`} />
             <Stat label="Trading fee" value={`${(pool.feeBps / 100).toFixed(2)}%`} sub="set by conviction" />
@@ -119,10 +118,10 @@ export default function TokenPage({ params }: { params: Promise<{ mint: string }
           <div>
             <div className="flex justify-between text-xs text-zinc-500 mb-1.5">
               <span>Progress to graduation</span>
-              <span>{(pool.progress * 100).toFixed(1)}%</span>
+              <span className="font-mono text-emerald-300">{(pool.progress * 100).toFixed(1)}%</span>
             </div>
-            <div className="h-2 rounded-full bg-zinc-800 overflow-hidden">
-              <div className="h-full bg-violet-500 transition-all" style={{ width: `${pool.progress * 100}%` }} />
+            <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
+              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-lime-300 transition-all" style={{ width: `${pool.progress * 100}%` }} />
             </div>
           </div>
 
