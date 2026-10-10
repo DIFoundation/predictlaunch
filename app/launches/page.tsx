@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import { ArrowUpRight, Rocket } from "lucide-react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { loadPoolByMint, loadPoolsByCreator, type PoolView } from "@/lib/meteora/pools";
@@ -65,10 +66,10 @@ export default function LaunchesPage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold">My Launches</h1>
+          <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">My Launches</h1>
           <p className="text-zinc-400 mt-1">Bonding-curve pools you created — live from the chain</p>
         </div>
-        <Link href="/launch" className="shrink-0 px-4 py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-sm font-medium transition">
+        <Link href="/launch" className="inline-flex shrink-0 items-center gap-2 rounded-xl bg-emerald-300 px-4 py-2.5 text-sm font-semibold text-zinc-950 transition hover:bg-emerald-200">
           + Launch Token
         </Link>
       </div>
@@ -95,11 +96,11 @@ export default function LaunchesPage() {
             <Link
               key={p.pool}
               href={`/launches/${p.mint}`}
-              className="block p-5 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-600 transition"
+              className="group block rounded-2xl border border-zinc-800/90 bg-zinc-900/35 p-5 transition hover:border-emerald-300/25 hover:bg-zinc-900/65"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <h3 className="font-semibold text-lg">
+                  <h3 className="font-semibold text-lg transition group-hover:text-emerald-200">
                     {p.name || rec?.name || "Unnamed"} <span className="text-zinc-500 font-normal">(${p.symbol || rec?.symbol || "?"})</span>
                   </h3>
                   <div className="flex flex-wrap gap-x-5 gap-y-1 mt-2 text-sm text-zinc-400">
