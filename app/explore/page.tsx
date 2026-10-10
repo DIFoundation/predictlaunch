@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { ArrowUpRight, Compass, RefreshCw } from "lucide-react";
+import { ArrowUpRight, RefreshCw } from "lucide-react";
 import { useConnection } from "@solana/wallet-adapter-react";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { loadPoolByMint, type PoolView } from "@/lib/meteora/pools";
