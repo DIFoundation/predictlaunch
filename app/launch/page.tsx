@@ -129,7 +129,22 @@ function LaunchForm() {
         createdAt: new Date().toISOString(), creator: publicKey.toBase58(),
       };
       launchStore.add(rec); launchStore.rememberMint(rec.mint); setResult(rec);
-      setStatus("Token + bonding curve pool created on-chain!");
+      setStatus("Token + bonding curve pool created on-chain! Registering it in the shared directory...");
+      try {
+        const registry = await fetch("/api/launches", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(rec),
+        });
+        const data = await registry.json().catch(() => ({}));
+        if (!registry.ok) {
+          throw new Error(typeof data.error === "string" ? data.error : `Registry request failed (${registry.status})`);
+        }
+        setStatus("Token launched and added to the shared PredictLaunch directory.");
+      } catch (registryError) {
+        console.error("Launch succeeded but shared directory registration failed", registryError);
+        setStatus("Token launched successfully on-chain and saved in this browser, but shared directory registration failed. Check Supabase environment variables and retry directory registration later.");
+      }
     } catch (e) {
       console.error("Meteora launch failed", e);
       const err = e as { message?: unknown; code?: unknown; cause?: { message?: unknown } };
