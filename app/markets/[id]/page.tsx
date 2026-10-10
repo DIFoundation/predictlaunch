@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PantaError } from "@/lib/panta/server";
+import { ArrowUpRight, BarChart3 } from "lucide-react";
 import { loadMarket } from "@/lib/panta/load";
 import { calculateConviction } from "@/lib/conviction/score";
 import { ConvictionPanel } from "@/components/conviction/ConvictionPanel";
@@ -79,23 +80,23 @@ export default async function MarketDetailPage({ params }: Props) {
     },
   ]);
 
-  const stat = "p-4 rounded-lg bg-zinc-900 border border-zinc-800";
+  const stat = "rounded-2xl border border-zinc-800/90 bg-zinc-900/45 p-4";
 
   return (
-    <div className="max-w-3xl mx-auto space-y-8">
+    <div className="space-y-7">
       <Link href="/markets" className="text-sm text-zinc-400 hover:text-white">
         ← Back to Markets
       </Link>
 
       <div>
-        <h1 className="text-3xl font-bold leading-tight">{market.title}</h1>
+        <h1 className="text-3xl font-semibold leading-tight tracking-tight sm:text-4xl">{market.title}</h1>
         {market.description && market.textQuality === "full" && (
           <p className="text-zinc-400 mt-3">{market.description}</p>
         )}
         <p className="text-xs text-zinc-600 mt-3 break-all">ID: {market.marketId}</p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <div className={stat}>
           <p className="text-xs text-zinc-500">Category</p>
           <p className="font-medium capitalize mt-1">{market.category}</p>
@@ -116,9 +117,26 @@ export default async function MarketDetailPage({ params }: Props) {
         </div>
       </div>
 
-      <ConvictionPanel conviction={conviction} />
+      <section className="rounded-2xl border border-zinc-800/90 bg-zinc-900/35 p-5">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <div><h2 className="font-semibold">Outcome prices</h2><p className="mt-1 text-xs text-zinc-500">Live market probability</p></div>
+          <BarChart3 size={17} className="text-zinc-500" />
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.045] p-4">
+            <div className="flex items-center justify-between"><span className="text-sm font-semibold text-emerald-300">YES</span><span className="text-xl font-semibold tabular-nums">{market.yesPrice === null ? "—" : `${(market.yesPrice * 100).toFixed(1)}¢`}</span></div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${(market.yesPrice ?? 0) * 100}%` }} /></div>
+          </div>
+          <div className="rounded-xl border border-rose-400/20 bg-rose-400/[0.045] p-4">
+            <div className="flex items-center justify-between"><span className="text-sm font-semibold text-rose-300">NO</span><span className="text-xl font-semibold tabular-nums">{market.noPrice === null ? "—" : `${(market.noPrice * 100).toFixed(1)}¢`}</span></div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-rose-400" style={{ width: `${(market.noPrice ?? 0) * 100}%` }} /></div>
+          </div>
+        </div>
+      </section>
 
       <PriceHistoryChart trades={trades} />
+
+      <ConvictionPanel conviction={conviction} />
 
       <PantaTradePanel
         marketId={market.marketId}
@@ -131,9 +149,9 @@ export default async function MarketDetailPage({ params }: Props) {
       <div className="flex flex-wrap items-center gap-4">
         <Link
           href={`/launch?market=${encodeURIComponent(market.marketId)}`}
-          className="px-5 py-3 rounded-lg bg-violet-600 hover:bg-violet-500 font-medium transition"
+          className="inline-flex items-center gap-2 rounded-xl bg-emerald-400 px-5 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-300"
         >
-          Launch a token linked to this market →
+          Launch a token linked to this market <ArrowUpRight size={16} />
         </Link>
       </div>
     </div>

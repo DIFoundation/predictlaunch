@@ -66,12 +66,29 @@ function defaultImageUrl(): string {
 }
 
 export const pantaServer = {
-  listMarkets(params?: { limit?: number; category?: string }) {
+  listMarkets(params?: { limit?: number; category?: string; status?: "active" | "inactive" | "all" }) {
     const q = new URLSearchParams();
     if (params?.limit) q.set("limit", String(params.limit));
     if (params?.category) q.set("category", params.category);
+    if (params?.status) q.set("status", params.status);
     const qs = q.toString();
     return pantaFetch(`/markets/${qs ? `?${qs}` : ""}`);
+  },
+
+  /**
+   * Prefer filtering at Panta before downloading the catalog. If this API version
+   * rejects the status parameter, fall back to the ordinary list and let the
+   * caller apply the same lifecycle filter locally.
+   */
+  async listActiveMarkets(params?: { limit?: number; category?: string }) {
+    try {
+      return await this.listMarkets({ ...params, status: "active" });
+    } catch (error) {
+      if (error instanceof PantaError && (error.status === 400 || error.status === 422)) {
+        return this.listMarkets(params);
+      }
+      throw error;
+    }
   },
 
   getMarket(marketId: string) {
