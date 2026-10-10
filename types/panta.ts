@@ -33,6 +33,7 @@ export interface PantaMarket {
   noPrice: number | null; // 0..1
   imageUrl?: string;
   endTime?: number; // unix seconds
+  resolved?: boolean;
 }
 
 export interface CreateQuoteInput {

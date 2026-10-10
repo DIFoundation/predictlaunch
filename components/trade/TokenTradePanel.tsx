@@ -148,6 +148,7 @@ export function TokenTradePanel({
       setStatus("Confirming on-chain...");
       const sig = await sendAndConfirm(connection, signed, lastValidBlockHeight);
 
+      launchStore.rememberPool(pool.mint, pool.pool);
       launchStore.rememberMint(pool.mint);
       setLastSig(sig);
       setStatus("Trade confirmed!");

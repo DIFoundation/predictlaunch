@@ -43,6 +43,7 @@ export default function TokenPage({ params }: { params: Promise<{ mint: string }
         const p = await loadPoolByMint(connection, mint, poolHint);
         if (!alive) return;
         if (!p) return setState("missing");
+        launchStore.rememberPool(mint, p.pool);
         setPool(p);
         setState("ok");
       } catch (e) {
@@ -52,7 +53,7 @@ export default function TokenPage({ params }: { params: Promise<{ mint: string }
       }
     };
     run();
-    const t = setInterval(run, 15_000);
+    const t = setInterval(run, 30_000);
     return () => {
       alive = false;
       clearInterval(t);

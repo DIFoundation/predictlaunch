@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { pantaServer } from "@/lib/panta/server";
-import { extractMarketList, normalizeMarket } from "@/lib/panta/normalize";
+import { extractMarketList, isActiveMarket, normalizeMarket } from "@/lib/panta/normalize";
 import { errorResponse } from "@/lib/panta/route-helpers";
 
 export const dynamic = "force-dynamic";
@@ -9,7 +9,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const data = await pantaServer.listMarkets({ limit: 50 });
-    return NextResponse.json({ items: extractMarketList(data).map(normalizeMarket) });
+    const items = extractMarketList(data).map(normalizeMarket).filter(isActiveMarket);
+    return NextResponse.json({ items });
   } catch (err) {
     return errorResponse(err, "Failed to load markets");
   }

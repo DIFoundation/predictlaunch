@@ -86,7 +86,11 @@ export default function ExplorePage() {
 
   useEffect(() => {
     if (!ready) return;
-    void load();
+    // Defer loading so state updates happen outside the effect's synchronous body.
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [ready, load]);
 
   return (
