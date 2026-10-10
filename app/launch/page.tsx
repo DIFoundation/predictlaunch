@@ -4,7 +4,6 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Rocket, Sparkles } from "lucide-react";
 import { calculateConviction, feeBpsForScore } from "@/lib/conviction/score";
 import { launchStore } from "@/lib/conviction/store";
 import { ConvictionPanel } from "@/components/conviction/ConvictionPanel";
