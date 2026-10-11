@@ -8,11 +8,11 @@ export async function POST(req: NextRequest) {
   const blocked = crossOriginResponse(req);
   if (blocked) return blocked;
   try {
-    const { quoteId, signature } = (await req.json()) ?? {};
-    if (!quoteId && !signature) {
-      return NextResponse.json({ error: "quoteId or signature is required" }, { status: 400 });
+    const { orderId, signature } = (await req.json()) ?? {};
+    if (typeof orderId !== "string" || !orderId) {
+      return NextResponse.json({ error: "orderId is required" }, { status: 400 });
     }
-    return NextResponse.json(await pantaServer.primaryOrderVerify(TRADE_SPEC.verify({ quoteId, signature })));
+    return NextResponse.json(await pantaServer.primaryOrderVerify(TRADE_SPEC.verify({ orderId, signature })));
   } catch (err) {
     return errorResponse(err, "Failed to verify order");
   }
