@@ -63,24 +63,28 @@ export async function simulateUsdcSpend(
   owner: PublicKey
 ): Promise<UsdcSpend> {
   const ata = getAssociatedTokenAddressSync(new PublicKey(USDC_MINT_MAINNET), owner);
-  const vtx = tx instanceof VersionedTransaction ? tx : new VersionedTransaction(tx.compileMessage());
-
   const preInfo = await conn.getAccountInfo(ata);
   const pre = preInfo ? tokenAmountFromData(preInfo.data) : BigInt(0);
 
-  const { value } = await conn.simulateTransaction(vtx, {
-    sigVerify: false,
-    replaceRecentBlockhash: true,
-    commitment: "confirmed",
-    accounts: { encoding: "base64", addresses: [ata.toBase58()] },
-  });
+  // Panta's response is a legacy Transaction. Simulate that legacy object using web3.js's
+  // legacy overload instead of wrapping a legacy Message in VersionedTransaction (invalid).
+  // Panta supplies a fresh blockhash, so simulation does not need replaceRecentBlockhash.
+  const simulation = tx instanceof VersionedTransaction
+    ? await conn.simulateTransaction(tx, {
+        sigVerify: false,
+        replaceRecentBlockhash: true,
+        commitment: "confirmed",
+        accounts: { encoding: "base64", addresses: [ata.toBase58()] },
+      })
+    : await conn.simulateTransaction(tx, [], [ata]);
+  const { value } = simulation;
 
   if (value.err) {
     return {
       simulated: false,
       error: `Simulation failed: ${JSON.stringify(value.err)}`,
       spentUsdc: null,
-      logs: (value.logs ?? []).slice(-6),
+      logs: (value.logs ?? []).slice(-20),
     };
   }
 
