@@ -6,7 +6,7 @@ import { useWallet, useConnection } from "@solana/wallet-adapter-react";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { PANTA_WRITES_ENABLED, txUrl } from "@/lib/config/network";
 import { sendAndConfirm } from "@/lib/rpc/connection";
-import { checkSpend, decodeTx, extractTxB64, simulateUsdcSpend, usdcBalance } from "@/lib/panta/tx";
+import { buildPantaTransaction, checkSpend, simulateUsdcSpend, usdcBalance } from "@/lib/panta/tx";
 import type { Side } from "@/lib/panta/trade-spec";
 
 interface Props {
@@ -138,9 +138,9 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
       if (!orderId) {
         throw new Error("Panta's build response had no orderId required for submit. Keys: " + Object.keys(build).join(", "));
       }
-      const b64 = extractTxB64(build);
-      if (!b64) throw new Error("Panta's build response had no transaction. Keys: " + Object.keys(build).join(", "));
-      const tx = decodeTx(b64);
+      const tx = buildPantaTransaction(build, publicKey);
+      const lastValidBlockHeight =
+        typeof build.lastValidBlockHeight === "number" ? build.lastValidBlockHeight : undefined;
 
       // Safety net: measure what this transaction REALLY does to our USDC before signing.
       setStatus("Checking what this transaction does (simulation)...");
@@ -162,7 +162,7 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
       const signed = await signTransaction(tx);
 
       setStatus("Broadcasting and confirming...");
-      const signature = await sendAndConfirm(connection, signed);
+      const signature = await sendAndConfirm(connection, signed, lastValidBlockHeight);
 
       setStatus("Registering your order with Panta...");
       const res = await postJson<{ attribution?: { ok: boolean; error?: string } }>("/api/panta/trade/submit", {
