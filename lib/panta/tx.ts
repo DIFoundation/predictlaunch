@@ -1,4 +1,4 @@
-import { Connection, PublicKey, Transaction, VersionedTransaction } from "@solana/web3.js";
+import { Connection, PublicKey, Transaction, TransactionInstruction, VersionedTransaction } from "@solana/web3.js";
 import { getAssociatedTokenAddressSync } from "@solana/spl-token";
 import { USDC_DECIMALS, USDC_MINT_MAINNET } from "@/lib/config/network";
 
@@ -123,4 +123,32 @@ export function checkSpend(
     };
   }
   return { ok: true, note: `Verified by simulation: spends ${spent.toFixed(2)} USDC.` };
+}
+
+/** Build the legacy transaction recipe returned by Panta. */
+export function buildPantaTransaction(build: unknown, expectedWallet: PublicKey): Transaction {
+  if (!build || typeof build !== "object") throw new Error("Panta returned an invalid build response.");
+  const value = build as { wallet?: unknown; recentBlockhash?: unknown; lastValidBlockHeight?: unknown; instructions?: unknown };
+  if (value.wallet !== expectedWallet.toBase58()) throw new Error("Panta build wallet does not match the connected wallet. Refusing to continue.");
+  if (typeof value.recentBlockhash !== "string" || !value.recentBlockhash) throw new Error("Panta build response has no recentBlockhash.");
+  if (!Number.isSafeInteger(value.lastValidBlockHeight) || Number(value.lastValidBlockHeight) <= 0) throw new Error("Panta build response has an invalid lastValidBlockHeight.");
+  if (!Array.isArray(value.instructions) || value.instructions.length === 0 || value.instructions.length > 20) throw new Error("Panta build response has an invalid instruction list.");
+  const instructions = value.instructions.map((raw: unknown, index: number) => {
+    if (!raw || typeof raw !== "object") throw new Error("Panta instruction " + (index + 1) + " is malformed.");
+    const item = raw as { programId?: unknown; data?: unknown; accounts?: unknown };
+    if (typeof item.programId !== "string" || typeof item.data !== "string" || !Array.isArray(item.accounts)) throw new Error("Panta instruction " + (index + 1) + " is malformed.");
+    const programId = new PublicKey(item.programId);
+    const keys = item.accounts.map((rawAccount: unknown, accountIndex: number) => {
+      if (!rawAccount || typeof rawAccount !== "object") throw new Error("Panta instruction account is malformed.");
+      const account = rawAccount as { pubkey?: unknown; isSigner?: unknown; isWritable?: unknown };
+      if (typeof account.pubkey !== "string" || typeof account.isSigner !== "boolean" || typeof account.isWritable !== "boolean") throw new Error("Panta instruction account is malformed.");
+      const pubkey = new PublicKey(account.pubkey);
+      if (account.isSigner && !pubkey.equals(expectedWallet)) throw new Error("Panta build requires an unexpected additional signer. Refusing to sign.");
+      return { pubkey, isSigner: account.isSigner, isWritable: account.isWritable };
+    });
+    const data = Buffer.from(item.data, "base64");
+    if (data.toString("base64") !== item.data) throw new Error("Panta instruction " + (index + 1) + " has invalid base64 data.");
+    return new TransactionInstruction({ programId, keys, data });
+  });
+  return new Transaction({ feePayer: expectedWallet, recentBlockhash: value.recentBlockhash, lastValidBlockHeight: Number(value.lastValidBlockHeight) }).add(...instructions);
 }
