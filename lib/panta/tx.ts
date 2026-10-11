@@ -150,5 +150,7 @@ export function buildPantaTransaction(build: unknown, expectedWallet: PublicKey)
     if (data.toString("base64") !== item.data) throw new Error("Panta instruction " + (index + 1) + " has invalid base64 data.");
     return new TransactionInstruction({ programId, keys, data });
   });
-  return new Transaction({ feePayer: expectedWallet, recentBlockhash: value.recentBlockhash, lastValidBlockHeight: Number(value.lastValidBlockHeight) }).add(...instructions);
+  const tx = new Transaction({ feePayer: expectedWallet, blockhash: value.recentBlockhash, lastValidBlockHeight: Number(value.lastValidBlockHeight) });
+  tx.add(...instructions);
+  return tx;
 }
