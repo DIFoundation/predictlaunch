@@ -29,42 +29,44 @@ export interface BuyInput {
   amountUsdc: number;
 }
 
+function optionalUserId() {
+  const userId = process.env.PANTA_USER_ID?.trim();
+  return userId ? { userId } : {};
+}
+
 export const TRADE_SPEC = {
-  // Field names are confirmed by Panta's validation response. Send amountUsdc as a
-  // decimal string (e.g. "5.00"), matching Panta's published quote request format.
-  // Side remains lowercase ("yes" | "no") as accepted by Panta's quote interface.
   quote: (i: BuyInput) => ({
     wallet: i.wallet,
     marketId: i.marketId,
     side: i.side,
     amountUsdc: i.amountUsdc.toFixed(2),
+    ...optionalUserId(),
   }),
 
-  // Documented: built "from a quoteId". `wallet` is sent too in case the server binds it.
   build: (i: { quoteId: string; wallet: string }) => ({
     quoteId: i.quoteId,
     wallet: i.wallet,
+    ...optionalUserId(),
+    maxSlippageBps: 100,
   }),
 
-  // GUESS: quoteId + signature.
-  submit: (i: { quoteId: string; signature: string; wallet: string }) => ({
-    quoteId: i.quoteId,
+  submit: (i: { orderId: string; signature: string; wallet: string }) => ({
+    orderId: i.orderId,
     signature: i.signature,
     wallet: i.wallet,
   }),
 
-  verify: (i: { quoteId?: string; signature?: string }) => ({
-    ...(i.quoteId ? { quoteId: i.quoteId } : {}),
+  verify: (i: { orderId: string; signature?: string }) => ({
+    orderId: i.orderId,
     ...(i.signature ? { signature: i.signature } : {}),
   }),
 
-  // GUESS: wallet + marketId.
   claim: (i: { wallet: string; marketId: string }) => ({
     wallet: i.wallet,
     marketId: i.marketId,
+    ...optionalUserId(),
   }),
 
-  // GUESS: signature (the server "verifies on-chain buy/claim" from it).
   attribute: (i: { signature: string; wallet?: string; marketId?: string }) => ({
     signature: i.signature,
     ...(i.wallet ? { wallet: i.wallet } : {}),
