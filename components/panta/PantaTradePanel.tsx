@@ -134,6 +134,10 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
     try {
       setStatus("Building the transaction...");
       const build = await postJson("/api/panta/trade/build", { quoteId, wallet: publicKey.toBase58() });
+      const orderId = typeof build.orderId === "string" ? build.orderId : null;
+      if (!orderId) {
+        throw new Error("Panta's build response had no orderId required for submit. Keys: " + Object.keys(build).join(", "));
+      }
       const b64 = extractTxB64(build);
       if (!b64) throw new Error("Panta's build response had no transaction. Keys: " + Object.keys(build).join(", "));
       const tx = decodeTx(b64);
@@ -162,7 +166,7 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
 
       setStatus("Registering your order with Panta...");
       const res = await postJson<{ attribution?: { ok: boolean; error?: string } }>("/api/panta/trade/submit", {
-        quoteId,
+        orderId,
         signature,
         wallet: publicKey.toBase58(),
         marketId,
@@ -171,7 +175,7 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
       // Best-effort status check (Panta finalises asynchronously).
       for (let i = 0; i < 4; i++) {
         try {
-          await postJson("/api/panta/trade/verify", { quoteId, signature });
+          await postJson("/api/panta/trade/verify", { orderId, signature });
           break;
         } catch {
           await new Promise((r) => setTimeout(r, 2000));
