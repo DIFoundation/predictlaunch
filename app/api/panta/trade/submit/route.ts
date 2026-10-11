@@ -12,11 +12,11 @@ export async function POST(req: NextRequest) {
   const blocked = crossOriginResponse(req);
   if (blocked) return blocked;
   try {
-    const { quoteId, signature, wallet, marketId } = (await req.json()) ?? {};
-    if (typeof quoteId !== "string" || typeof signature !== "string" || typeof wallet !== "string" || !quoteId || !signature || !wallet) {
-      return NextResponse.json({ error: "quoteId, signature and wallet are required" }, { status: 400 });
+    const { orderId, signature, wallet, marketId } = (await req.json()) ?? {};
+    if (typeof orderId !== "string" || typeof signature !== "string" || typeof wallet !== "string" || !orderId || !signature || !wallet) {
+      return NextResponse.json({ error: "orderId, signature and wallet are required" }, { status: 400 });
     }
-    const submit = await pantaServer.primaryOrderSubmit(TRADE_SPEC.submit({ quoteId, signature, wallet }));
+    const submit = await pantaServer.primaryOrderSubmit(TRADE_SPEC.submit({ orderId, signature, wallet }));
 
     let attribution: { ok: boolean; result?: unknown; error?: string };
     try {
