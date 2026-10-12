@@ -152,6 +152,11 @@ export default function CreateMarketPage() {
       if (quotedPayment > budget) {
         throw new Error(`Panta's current creation quote is ${formatUsdc(quotedPayment)}, above your ${formatUsdc(budget)} maximum budget. No transaction was built or signed. Increase your budget only if you accept the amount, or cancel and check whether Panta supports a lower-cost market configuration.`);
       }
+      try {
+        setWalletUsdcBalance(await usdcBalance(connection, publicKey));
+      } catch {
+        setWalletUsdcBalance(null);
+      }
       setQuote(q);
       setStatus(null);
     } catch (err) {
