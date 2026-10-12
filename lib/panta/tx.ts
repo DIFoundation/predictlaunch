@@ -63,7 +63,23 @@ export async function simulateUsdcSpend(
   owner: PublicKey
 ): Promise<UsdcSpend> {
   const ata = getAssociatedTokenAddressSync(new PublicKey(USDC_MINT_MAINNET), owner);
-  const preInfo = await conn.getAccountInfo(ata);
+
+  // Solana reports AccountNotFound at fee-payer validation when the wallet account
+  // does not exist on the RPC cluster. Panta writes are mainnet-only.
+  const ownerInfo = await conn.getAccountInfo(owner, "confirmed");
+  if (!ownerInfo) {
+    const [lamports, genesisHash] = await Promise.all([
+      conn.getBalance(owner, "confirmed").catch(() => 0),
+      conn.getGenesisHash().catch(() => "unavailable"),
+    ]);
+    return {
+      simulated: false,
+      error: `Simulation failed: fee-payer wallet account is missing on the configured RPC (balance: ${lamports} lamports; genesis: ${genesisHash}). Check that NEXT_PUBLIC_SOLANA_NETWORK=mainnet and the RPC is Solana mainnet, and that this wallet has SOL for fees. Do not bypass simulation.`,
+      spentUsdc: null,
+    };
+  }
+
+  const preInfo = await conn.getAccountInfo(ata, "confirmed");
   const pre = preInfo ? tokenAmountFromData(preInfo.data) : BigInt(0);
 
   // Panta's response is a legacy Transaction. Simulate that legacy object using web3.js's
