@@ -95,6 +95,15 @@ export default function CreateMarketPage() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [minStartDateTime, setMinStartDateTime] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setMinStartDateTime(
+      marketType === "standard"
+        ? localDateTimeValue(Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000)
+        : undefined
+    );
+  }, [marketType]);
 
   // Best-effort image upload (endpoint + response shape are guessed -- see lib/panta/upload-spec.ts).
   // Falls back cleanly: on any failure, the manual Image URL field above still works.
@@ -348,7 +357,7 @@ export default function CreateMarketPage() {
               type="datetime-local"
               className={inputCls}
               value={startAt}
-              min={marketType === "standard" ? localDateTimeValue(Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000) : undefined}
+              min={minStartDateTime}
               onChange={(e) => setStartAt(e.target.value)}
               disabled={busy || !!quote}
               required
