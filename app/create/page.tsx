@@ -137,19 +137,25 @@ export default function CreateMarketPage() {
       // Deserialize first; Panta's create transaction must pass the same RPC simulation
       // gate used by Meteora before we ask the wallet to sign.
       const tx = decodeTx(b64);
-      const { value: balance } = await connection.getBalance(publicKey, "confirmed").then((lamports) => ({ value: lamports }));
-      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
       if (tx instanceof VersionedTransaction) {
         if (!tx.message.recentBlockhash) throw new Error("Panta create transaction has no recent blockhash.");
+        const feePayer = tx.message.staticAccountKeys[0];
+        if (!feePayer || !feePayer.equals(publicKey)) {
+          throw new Error("Panta create transaction fee payer does not match the connected wallet. Refusing to sign.");
+        }
       } else {
         if (!tx.feePayer) tx.feePayer = publicKey;
         if (!tx.recentBlockhash) throw new Error("Panta create transaction has no recent blockhash.");
-        if (!tx.feePayer.equals(publicKey)) throw new Error("Panta create transaction fee payer does not match the connected wallet.");
-      }
-      if (balance < 5_000) {
-        throw new Error("This wallet has no SOL or too little SOL on the configured Solana RPC to pay transaction fees. Check that the app and wallet are both on Solana mainnet and fund this wallet with SOL before creating a market.");
+        if (!tx.feePayer.equals(publicKey)) throw new Error("Panta create transaction fee payer does not match the connected wallet. Refusing to sign.");
       }
       const simulationTx = tx instanceof VersionedTransaction ? tx : new VersionedTransaction(tx.compileMessage());
+      const [balance, feeResult] = await Promise.all([
+        connection.getBalance(publicKey, "confirmed"),
+        connection.getFeeForMessage(simulationTx.message, "confirmed"),
+      ]);
+      if (balance <= 0 || feeResult.value === null || balance < feeResult.value) {
+        throw new Error(`This wallet cannot pay the market-creation transaction fee on the configured RPC (SOL balance: ${(balance / 1e9).toFixed(6)} SOL; estimated network fee: ${feeResult.value === null ? "unavailable" : (feeResult.value / 1e9).toFixed(6) + " SOL"}). Confirm that the app and wallet are both on Solana mainnet and fund this wallet with SOL before creating a market.`);
+      }
       setStatus("Simulating Panta market creation on the RPC...");
       const { value: sim } = await connection.simulateTransaction(simulationTx, {
         sigVerify: false,
