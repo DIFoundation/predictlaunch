@@ -18,6 +18,7 @@ interface Props {
 }
 
 type Json = Record<string, unknown>;
+const MIN_PRIMARY_BUY_USDC = 0.1;
 
 async function postJson<T = Json>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -94,7 +95,8 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
     setDone(null);
     if (!publicKey) return setError("Connect your wallet first");
     if (!ready) return setError(blockReason);
-    if (!Number.isFinite(amountNum) || amountNum <= 0) return setError("Enter an amount in USDC");
+    if (!Number.isFinite(amountNum) || amountNum < MIN_PRIMARY_BUY_USDC) return setError("Panta primary-market buys require at least 0.10 USDC. Enter 0.10 USDC or more.");
+    if (balance !== null && amountNum > balance) return setError(`Insufficient USDC before requesting a quote: you entered ${amountNum.toFixed(2)} USDC, but your wallet has ${balance.toFixed(6)} USDC. You are short ${(amountNum - balance).toFixed(6)} USDC, excluding any separate network fee requirements.`);
     setBusy(true);
     setStatus("Getting a quote from Panta...");
     try {
@@ -261,15 +263,22 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
           </div>
           <input
             inputMode="decimal"
+            type="number"
+            min={MIN_PRIMARY_BUY_USDC}
+            step="0.01"
             value={amount}
             onChange={(e) => {
               setAmount(e.target.value);
               reset();
             }}
-            placeholder="5.00"
+            placeholder="0.10 minimum"
             disabled={busy || secondary}
             className="w-full rounded-xl border border-zinc-700/80 bg-zinc-950 px-4 py-3 text-sm outline-none transition focus:border-emerald-300/60 focus:ring-2 focus:ring-emerald-300/10"
           />
+          <p className="text-xs text-zinc-500 mt-1.5">Minimum primary-market buy: <span className="text-zinc-300">0.10 USDC</span>. Panta may reject orders below the on-chain minimum.</p>
+          {balance !== null && Number.isFinite(amountNum) && amountNum >= MIN_PRIMARY_BUY_USDC && amountNum > balance && (
+            <p className="text-xs text-red-400 mt-1.5">Shortfall: {(amountNum - balance).toFixed(6)} USDC. You need at least {amountNum.toFixed(2)} USDC plus SOL for network fees.</p>
+          )}
           {price !== null && amountNum > 0 && (
             <p className="text-xs text-zinc-500 mt-1.5">≈ {(amountNum / price).toFixed(2)} shares at the current {Math.round(price * 100)}¢ (Panta&apos;s quote is authoritative)</p>
           )}
@@ -319,7 +328,7 @@ export function PantaTradePanel({ marketId, title, phase, yesPrice, noPrice }: P
           <button
             type="button"
             onClick={getQuote}
-            disabled={busy || !publicKey || !ready || !PANTA_WRITES_ENABLED || secondary || !amount}
+            disabled={busy || !publicKey || !ready || !PANTA_WRITES_ENABLED || secondary || !amount || !Number.isFinite(amountNum) || amountNum < MIN_PRIMARY_BUY_USDC || (balance !== null && amountNum > balance)}
             className="w-full rounded-xl bg-emerald-300 py-3 font-semibold text-zinc-950 transition hover:bg-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {busy ? "Working..." : !publicKey ? "Connect Wallet First" : `Get quote to buy ${side.toUpperCase()}`}
