@@ -42,6 +42,7 @@ export interface CreateQuoteInput {
   description?: string;
   category: string;
   imageUrl?: string;
+  marketType?: "standard" | "breaking";
   /** Unix seconds. Optional so server defaults remain available to non-UI callers. */
   startTime?: number;
   /** Unix seconds. Must be later than startTime. */
