@@ -171,9 +171,15 @@ export const pantaServer = {
   quoteCreateMarket(input: CreateQuoteInput) {
     const now = Math.floor(Date.now() / 1000);
     // Panta's current rules require Standard-market events to start at least 72h ahead.
-    // The old +65m value could pass quote but fail during transaction build.
-    const startTime = now + 3 * 24 * HOUR + 300;
-    const endTime = startTime + 3 * 24 * HOUR;
+    // Defaults are used only when no schedule is supplied; creators may choose valid times.
+    const startTime = input.startTime ?? now + 3 * 24 * HOUR + 300;
+    const endTime = input.endTime ?? startTime + 3 * 24 * HOUR;
+    if (!Number.isSafeInteger(startTime) || startTime < now + 72 * HOUR + 300) {
+      throw new PantaError("Market start time must be at least 72 hours and 5 minutes in the future.", 400);
+    }
+    if (!Number.isSafeInteger(endTime) || endTime <= startTime) {
+      throw new PantaError("Market close time must be later than its start time.", 400);
+    }
     const resolutionTime = endTime + 2 * HOUR;
 
     return pantaFetchRetryOpaque("/markets/create/quote/", {
