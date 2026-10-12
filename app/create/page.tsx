@@ -95,6 +95,15 @@ export default function CreateMarketPage() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [minStartDateTime, setMinStartDateTime] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    setMinStartDateTime(
+      marketType === "standard"
+        ? localDateTimeValue(Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000)
+        : undefined
+    );
+  }, [marketType]);
 
   const minStartDateTime = marketType === "standard" ? localDateTimeValue(Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000) : undefined;
 

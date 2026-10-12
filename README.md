@@ -73,6 +73,21 @@ matching server-side RPC URL; no source-code changes are required when switching
 
 ---
 
+## Panta market creation and buying
+
+Market creation uses Panta's live quote as the source of truth for the creation fee. PredictLaunch supports two market types:
+
+- **Standard** — published creation fee: 50 USDC; the event must start at least 72 hours and 5 minutes in the future.
+- **Breaking** — published creation fee: 20 USDC; the event must start within the next 72 hours or may already be underway.
+
+These are published fee levels, not user-configurable prices. The app checks the live quote against the creator's maximum budget and checks the connected wallet's USDC balance before transaction building/signing. A budget below the live quote is rejected before a transaction is built. SOL is also needed for Solana network fees.
+
+Primary-market buys must be at least **0.10 USDC** (minimum inferred from Panta's on-chain `OrderTooSmall` rejection). The UI and quote API reject smaller amounts, and the buy flow checks the available USDC balance before proceeding. The wallet still needs enough SOL for network fees, and transaction simulation must pass before signing.
+
+**Demo safety:** creating a market or buying shares can spend real mainnet USDC. Use a wallet with only the intended demo funds, confirm the network and token mint, and never bypass balance checks or transaction simulation. If you do not have sufficient USDC, demonstrate existing markets, market details, conviction indicators, and the portfolio read-only views instead.
+
+---
+
 ## Project Structure
 
 ```
