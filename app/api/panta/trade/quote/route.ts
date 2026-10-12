@@ -4,6 +4,7 @@ import { TRADE_SPEC } from "@/lib/panta/trade-spec";
 import { crossOriginResponse, errorResponse } from "@/lib/panta/route-helpers";
 
 const WALLET = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+const MIN_PRIMARY_BUY_USDC = 0.1;
 
 /** Step 1 of an in-app buy: preview the fill and get a quoteId. Spends nothing. */
 export async function POST(req: NextRequest) {
@@ -21,8 +22,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "side must be 'yes' or 'no'" }, { status: 400 });
     }
     const amt = Number(amountUsdc);
-    if (!Number.isFinite(amt) || amt <= 0 || amt > 100_000) {
-      return NextResponse.json({ error: "amountUsdc must be a positive number" }, { status: 400 });
+    if (!Number.isFinite(amt) || amt < MIN_PRIMARY_BUY_USDC || amt > 100_000) {
+      return NextResponse.json({ error: "Minimum primary-market buy is 0.10 USDC. Enter an amount of at least 0.10 USDC." }, { status: 400 });
     }
     return NextResponse.json(
       await pantaServer.primaryOrderQuote(TRADE_SPEC.quote({ wallet, marketId, side, amountUsdc: amt }))
