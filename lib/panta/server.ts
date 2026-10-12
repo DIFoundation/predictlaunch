@@ -170,15 +170,29 @@ export const pantaServer = {
   /** Step 1: quote. Response includes `createId` and the USDC fee (`paymentUsdc`). */
   quoteCreateMarket(input: CreateQuoteInput) {
     const now = Math.floor(Date.now() / 1000);
-    // Panta's current rules require Standard-market events to start at least 72h ahead.
-    // Defaults are used only when no schedule is supplied; creators may choose valid times.
-    const startTime = input.startTime ?? now + 3 * 24 * HOUR + 300;
-    const endTime = input.endTime ?? startTime + 3 * 24 * HOUR;
-    if (!Number.isSafeInteger(startTime) || startTime < now + 72 * HOUR + 300) {
-      throw new PantaError("Market start time must be at least 72 hours and 5 minutes in the future.", 400);
+    const marketType = input.marketType ?? "standard";
+    if (marketType !== "standard" && marketType !== "breaking") {
+      throw new PantaError("Market type must be standard or breaking.", 400);
     }
-    if (!Number.isSafeInteger(endTime) || endTime <= startTime) {
-      throw new PantaError("Market close time must be later than its start time.", 400);
+
+    // Panta's published rules: Standard markets start at least 72h ahead;
+    // Breaking markets start within 72h or may already be underway.
+    const startTime = input.startTime ?? (
+      marketType === "standard" ? now + 72 * HOUR + 300 : now + HOUR
+    );
+    const endTime = input.endTime ?? startTime + (marketType === "standard" ? 3 * 24 * HOUR : 24 * HOUR);
+
+    if (!Number.isSafeInteger(startTime)) {
+      throw new PantaError("Market start time must be a valid Unix timestamp in seconds.", 400);
+    }
+    if (marketType === "standard" && startTime < now + 72 * HOUR + 300) {
+      throw new PantaError("Standard markets must start at least 72 hours and 5 minutes in the future.", 400);
+    }
+    if (marketType === "breaking" && startTime > now + 72 * HOUR) {
+      throw new PantaError("Breaking markets must start within the next 72 hours or already be underway.", 400);
+    }
+    if (!Number.isSafeInteger(endTime) || endTime <= startTime || endTime <= now) {
+      throw new PantaError("Market close time must be later than its start time and still be in the future.", 400);
     }
     const resolutionTime = endTime + 2 * HOUR;
 
@@ -196,7 +210,7 @@ export const pantaServer = {
         startTime,
         endTime,
         resolutionTime,
-        marketType: "standard",
+        marketType,
         imageUrl: input.imageUrl || defaultImageUrl(),
         region: "Global",
       }),

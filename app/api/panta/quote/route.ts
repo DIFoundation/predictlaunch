@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   if (blocked) return blocked;
   try {
     const body = await req.json();
-    const { wallet, question, description, category, imageUrl, startTime, endTime } = body ?? {};
+    const { wallet, question, description, category, imageUrl, marketType, startTime, endTime } = body ?? {};
 
     if (typeof wallet !== "string" || !wallet) {
       return NextResponse.json({ error: "wallet is required" }, { status: 400 });
@@ -17,6 +17,10 @@ export async function POST(req: NextRequest) {
         { error: "question is required (at least 10 characters)" },
         { status: 400 }
       );
+    }
+
+    if (marketType !== undefined && marketType !== "standard" && marketType !== "breaking") {
+      return NextResponse.json({ error: "marketType must be standard or breaking" }, { status: 400 });
     }
 
     if (startTime !== undefined && (!Number.isSafeInteger(startTime) || startTime <= 0)) {
@@ -33,6 +37,7 @@ export async function POST(req: NextRequest) {
       description: typeof description === "string" ? description.trim() : undefined,
       category: typeof category === "string" && category ? category : "crypto",
       imageUrl: typeof imageUrl === "string" && imageUrl ? imageUrl : undefined,
+      marketType: marketType === "breaking" ? "breaking" : "standard",
       startTime: typeof startTime === "number" ? startTime : undefined,
       endTime: typeof endTime === "number" ? endTime : undefined,
     });

@@ -65,6 +65,7 @@ export default function CreateMarketPage() {
   const [question, setQuestion] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState("crypto");
+  const [marketType, setMarketType] = useState<"standard" | "breaking">("standard");
   const [categories, setCategories] = useState<{ value: string; label: string }[]>(FALLBACK_CATEGORIES);
   const [imageUrl, setImageUrl] = useState("");
   const [maxBudgetUsdc, setMaxBudgetUsdc] = useState("");
@@ -72,6 +73,7 @@ export default function CreateMarketPage() {
   const [endAt, setEndAt] = useState(() => localDateTimeValue(Date.now() + (144 * 60 + 5) * 60_000));
 
   const [quote, setQuote] = useState<Quote | null>(null);
+  const [walletUsdcBalance, setWalletUsdcBalance] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
@@ -126,7 +128,7 @@ export default function CreateMarketPage() {
     const minStartMs = Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000;
     const budget = Number(maxBudgetUsdc);
     if (!Number.isFinite(budget) || budget <= 0) return setError("Enter the maximum USDC budget you are willing to spend on market creation.");
-    if (!Number.isFinite(startMs) || startMs < minStartMs) return setError("Panta standard markets must start at least 72 hours and 5 minutes from now.");
+    if (!Number.isFinite(startMs) || (marketType === "standard" && startMs < minStartMs) || (marketType === "breaking" && startMs > Date.now() + 72 * 60 * 60 * 1000)) return setError(marketType === "standard" ? "Standard markets must start at least 72 hours and 5 minutes from now." : "Breaking markets must start within the next 72 hours or already be underway.");
     if (!Number.isFinite(endMs) || endMs <= startMs) return setError("Market close time must be later than the start time.");
 
     setBusy(true);
@@ -140,6 +142,7 @@ export default function CreateMarketPage() {
         description,
         category,
         imageUrl: imageUrl.trim() || undefined,
+        marketType,
         startTime: Math.floor(startMs / 1000),
         endTime: Math.floor(endMs / 1000),
       });
@@ -148,6 +151,11 @@ export default function CreateMarketPage() {
       if (quotedPayment === null) throw new Error("Panta quote did not include a valid paymentUsdc amount in USDC base units.");
       if (quotedPayment > budget) {
         throw new Error(`Panta's current creation quote is ${formatUsdc(quotedPayment)}, above your ${formatUsdc(budget)} maximum budget. No transaction was built or signed. Increase your budget only if you accept the amount, or cancel and check whether Panta supports a lower-cost market configuration.`);
+      }
+      try {
+        setWalletUsdcBalance(await usdcBalance(connection, publicKey));
+      } catch {
+        setWalletUsdcBalance(null);
       }
       setQuote(q);
       setStatus(null);
@@ -174,6 +182,14 @@ export default function CreateMarketPage() {
     setBusy(true);
     setError(null);
     try {
+      const quotedPaymentBeforeBuild = usdcFromBaseUnits(quote.paymentUsdc);
+      if (quotedPaymentBeforeBuild === null) throw new Error("The quote does not contain a valid USDC payment amount. Request a new quote.");
+      const balanceBeforeBuild = await usdcBalance(connection, publicKey);
+      setWalletUsdcBalance(balanceBeforeBuild);
+      if (balanceBeforeBuild < quotedPaymentBeforeBuild) {
+        const shortfall = quotedPaymentBeforeBuild - balanceBeforeBuild;
+        throw new Error(`Insufficient USDC before transaction building: Panta requires ${formatUsdc(quotedPaymentBeforeBuild)}, your wallet has ${formatUsdc(balanceBeforeBuild)}, and you are short ${formatUsdc(shortfall)}. Fund this wallet with at least ${formatUsdc(shortfall)} more USDC, then request a fresh quote. SOL for network fees is separate.`);
+      }
       setStatus("Building transaction...");
       const build = await postJson<Record<string, unknown>>("/api/panta/build", { createId });
       const b64 = extractTxB64(build);
@@ -264,7 +280,7 @@ export default function CreateMarketPage() {
       )}
 
       <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm">
-        Market creation uses real mainnet USDC and SOL for network fees. Panta currently determines the actual creation payment in its quote; PredictLaunch will not pretend the creator can set a price unless Panta supports that parameter. Your maximum budget is enforced before building or signing.
+        Market creation uses real mainnet USDC and SOL for network fees. Panta\u2019s published creation fees are $50 USDC for Standard and $20 USDC for Breaking. A $10 budget cannot cover either type. The live Panta quote remains authoritative and your maximum budget is enforced before building or signing.
       </div>
 
       <form onSubmit={handleQuote} className="space-y-5 rounded-2xl border border-zinc-800/90 bg-zinc-900/30 p-5 sm:p-6">
@@ -290,6 +306,27 @@ export default function CreateMarketPage() {
           />
         </div>
         <div>
+          <label className="block text-sm font-medium mb-2">Market type *</label>
+          <select
+            className={inputCls}
+            value={marketType}
+            onChange={(e) => {
+              const next = e.target.value as "standard" | "breaking";
+              setMarketType(next);
+              const now = Date.now();
+              setStartAt(localDateTimeValue(next === "standard" ? now + (72 * 60 + 5) * 60_000 : now + 60 * 60_000));
+              setEndAt(localDateTimeValue(next === "standard" ? now + (144 * 60 + 5) * 60_000 : now + 25 * 60 * 60_000));
+              setQuote(null);
+              setError(null);
+            }}
+            disabled={busy || !!quote}
+          >
+            <option value="standard">Standard — $50 USDC · starts 72+ hours ahead</option>
+            <option value="breaking">Breaking — $20 USDC · starts within 72 hours or already underway</option>
+          </select>
+          <p className="mt-1.5 text-xs text-zinc-500">Panta determines the actual fee. These are its published fee levels; the live quote remains authoritative.</p>
+        </div>
+        <div>
           <label className="block text-sm font-medium mb-2">Category</label>
           <select
             className={inputCls}
@@ -311,12 +348,12 @@ export default function CreateMarketPage() {
               type="datetime-local"
               className={inputCls}
               value={startAt}
-              min={localDateTimeValue(Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000)}
+              min={marketType === "standard" ? localDateTimeValue(Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000) : undefined}
               onChange={(e) => setStartAt(e.target.value)}
               disabled={busy || !!quote}
               required
             />
-            <p className="mt-1.5 text-xs text-zinc-500">Panta currently requires at least 72 hours' notice.</p>
+            <p className="mt-1.5 text-xs text-zinc-500">{marketType === "standard" ? "Standard: at least 72 hours and 5 minutes' notice." : "Breaking: event starts within 72 hours or may already be underway."}</p>
           </div>
           <div>
             <label className="block text-sm font-medium mb-2">Market closes (local time) *</label>
@@ -400,6 +437,11 @@ export default function CreateMarketPage() {
             <p className="text-sm text-zinc-400">Panta quote · actual required payment</p>
             <p className="text-2xl font-bold mt-1">{formatUsdc(usdcFromBaseUnits(quote.paymentUsdc))}</p>
             <p className="mt-1 text-xs text-zinc-500">Your maximum budget: {formatUsdc(Number.isFinite(Number(maxBudgetUsdc)) && Number(maxBudgetUsdc) > 0 ? Number(maxBudgetUsdc) : null)}</p>
+          </div>
+          <div className="rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 text-sm space-y-2">
+            <div className="flex justify-between gap-3"><span className="text-zinc-400">Required USDC</span><strong>{formatUsdc(usdcFromBaseUnits(quote.paymentUsdc))}</strong></div>
+            <div className="flex justify-between gap-3"><span className="text-zinc-400">Wallet USDC balance</span><strong>{walletUsdcBalance === null ? "Checking before build" : formatUsdc(walletUsdcBalance)}</strong></div>
+            <div className="flex justify-between gap-3"><span className="text-zinc-400">USDC shortfall</span><strong className={walletUsdcBalance !== null && (usdcFromBaseUnits(quote.paymentUsdc) ?? 0) > walletUsdcBalance ? "text-red-400" : "text-emerald-300"}>{walletUsdcBalance === null ? "Checked before build" : formatUsdc(Math.max(0, (usdcFromBaseUnits(quote.paymentUsdc) ?? 0) - walletUsdcBalance))}</strong></div>
           </div>
           <div className="grid grid-cols-1 gap-2 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 text-sm sm:grid-cols-3">
             <div><p className="text-xs text-zinc-500">Seed liquidity</p><p className="mt-1 font-medium">{formatUsdc(usdcFromBaseUnits(quote.liquidityInjectionUsdc))}</p></div>
