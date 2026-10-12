@@ -56,6 +56,22 @@ export async function pantaFetch<T = unknown>(path: string, init: RequestInit = 
 
 const HOUR = 3600;
 
+/** Retry once only for Panta's opaque INVALID_MARKET_PARAMS internal failures. */
+async function pantaFetchRetryOpaque<T>(path: string, init: RequestInit): Promise<T> {
+  try {
+    return await pantaFetch<T>(path, init);
+  } catch (error) {
+    if (!(error instanceof PantaError) || error.status !== 400) throw error;
+    const body = error.body as { code?: unknown; message?: unknown } | null;
+    const code = body && typeof body === "object" ? body.code : undefined;
+    const message = body && typeof body === "object" && typeof body.message === "string" ? body.message : "";
+    const opaque = code === "INVALID_MARKET_PARAMS" && (!message || /unexpected .*failure|check server logs/i.test(message));
+    if (!opaque) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 350));
+    return pantaFetch<T>(path, init);
+  }
+}
+
 /** Fallback image. Panta refuses most public image hosts at *build* time, so
  *  set PANTA_DEFAULT_IMAGE_URL to a URL you have verified end-to-end. */
 function defaultImageUrl(): string {
@@ -122,7 +138,7 @@ export const pantaServer = {
 
   // ---- Primary-market buy: quote -> build -> (user signs + broadcasts) -> submit -> verify ----
   primaryOrderQuote(body: unknown) {
-    return pantaFetch("/primaryorderquote/", { method: "POST", body: JSON.stringify(body) });
+    return pantaFetchRetryOpaque("/primaryorderquote/", { method: "POST", body: JSON.stringify(body) });
   },
   primaryOrderBuild(body: unknown) {
     return pantaFetch("/primaryorderbuild/", { method: "POST", body: JSON.stringify(body) });
@@ -154,11 +170,13 @@ export const pantaServer = {
   /** Step 1: quote. Response includes `createId` and the USDC fee (`paymentUsdc`). */
   quoteCreateMarket(input: CreateQuoteInput) {
     const now = Math.floor(Date.now() / 1000);
-    const startTime = now + HOUR + 300; // API requires >= now + 1h
+    // Panta's current rules require Standard-market events to start at least 72h ahead.
+    // The old +65m value could pass quote but fail during transaction build.
+    const startTime = now + 3 * 24 * HOUR + 300;
     const endTime = startTime + 3 * 24 * HOUR;
     const resolutionTime = endTime + 2 * HOUR;
 
-    return pantaFetch("/markets/create/quote/", {
+    return pantaFetchRetryOpaque("/markets/create/quote/", {
       method: "POST",
       body: JSON.stringify({
         wallet: input.wallet,
@@ -181,7 +199,7 @@ export const pantaServer = {
 
   /** Step 2: build. Panta's build endpoint takes `createId` (was wrongly sent as `quoteId`). */
   buildCreateMarket(createId: string) {
-    return pantaFetch("/markets/create/build/", {
+    return pantaFetchRetryOpaque("/markets/create/build/", {
       method: "POST",
       body: JSON.stringify({ createId }),
     });
