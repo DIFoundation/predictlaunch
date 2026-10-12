@@ -7,6 +7,7 @@ import { useNetwork } from "@/components/network/NetworkProvider";
 import { PANTA_WRITES_ENABLED } from "@/lib/config/network";
 import { sendAndConfirm } from "@/lib/rpc/connection";
 import { decodeTx, extractTxB64 } from "@/lib/panta/tx";
+import { VersionedTransaction } from "@solana/web3.js";
 import { parseUploadResponse, uploadToTarget } from "@/lib/panta/upload-spec";
 
 type Quote = Record<string, unknown> & { createId?: string; paymentUsdc?: number | string };
@@ -133,15 +134,44 @@ export default function CreateMarketPage() {
         throw new Error("Build response had no transaction. Keys: " + Object.keys(build).join(", "));
       }
 
-      // Deserialize FIRST, sign second. (The old code wrapped both in one try/catch, so a
-      // wallet "User rejected" error fell through to the legacy path and got masked.)
+      // Deserialize first; Panta's create transaction must pass the same RPC simulation
+      // gate used by Meteora before we ask the wallet to sign.
       const tx = decodeTx(b64);
+      if (tx instanceof VersionedTransaction) {
+        if (!tx.message.recentBlockhash) throw new Error("Panta create transaction has no recent blockhash.");
+        const feePayer = tx.message.staticAccountKeys[0];
+        if (!feePayer || !feePayer.equals(publicKey)) {
+          throw new Error("Panta create transaction fee payer does not match the connected wallet. Refusing to sign.");
+        }
+      } else {
+        if (!tx.feePayer) tx.feePayer = publicKey;
+        if (!tx.recentBlockhash) throw new Error("Panta create transaction has no recent blockhash.");
+        if (!tx.feePayer.equals(publicKey)) throw new Error("Panta create transaction fee payer does not match the connected wallet. Refusing to sign.");
+      }
+      const simulationTx = tx instanceof VersionedTransaction ? tx : new VersionedTransaction(tx.compileMessage());
+      const [balance, feeResult] = await Promise.all([
+        connection.getBalance(publicKey, "confirmed"),
+        connection.getFeeForMessage(simulationTx.message, "confirmed"),
+      ]);
+      if (balance <= 0 || feeResult.value === null || balance < feeResult.value) {
+        throw new Error(`This wallet cannot pay the market-creation transaction fee on the configured RPC (SOL balance: ${(balance / 1e9).toFixed(6)} SOL; estimated network fee: ${feeResult.value === null ? "unavailable" : (feeResult.value / 1e9).toFixed(6) + " SOL"}). Confirm that the app and wallet are both on Solana mainnet and fund this wallet with SOL before creating a market.`);
+      }
+      setStatus("Simulating Panta market creation on the RPC...");
+      const { value: sim } = await connection.simulateTransaction(simulationTx, {
+        sigVerify: false,
+        replaceRecentBlockhash: true,
+        commitment: "confirmed",
+      });
+      if (sim.err) {
+        const logs = (sim.logs ?? []).slice(-15).join("\\n");
+        throw new Error(`Market transaction simulation failed: ${JSON.stringify(sim.err)}${logs ? "\\n" + logs : "\\nNo program logs were returned. Check mainnet RPC and fee-payer SOL balance."}`);
+      }
 
-      setStatus("Approve the transaction in your wallet...");
+      setStatus("Simulation passed. Approve the transaction in your wallet...");
       const signed = await signTransaction(tx);
 
       setStatus("Broadcasting and confirming...");
-      const signature = await sendAndConfirm(connection, signed);
+      const signature = await sendAndConfirm(connection, signed, lastValidBlockHeight);
 
       setStatus("Registering market with Panta...");
       await postJson("/api/panta/register", { createId, signature });
