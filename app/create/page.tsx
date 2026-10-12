@@ -6,11 +6,34 @@ import { useRouter } from "next/navigation";
 import { useNetwork } from "@/components/network/NetworkProvider";
 import { PANTA_WRITES_ENABLED } from "@/lib/config/network";
 import { sendAndConfirm } from "@/lib/rpc/connection";
-import { decodeTx, extractTxB64 } from "@/lib/panta/tx";
+import { decodeTx, extractTxB64, simulateUsdcSpend, usdcBalance } from "@/lib/panta/tx";
+import { USDC_DECIMALS } from "@/lib/config/network";
 import { VersionedTransaction } from "@solana/web3.js";
 import { parseUploadResponse, uploadToTarget } from "@/lib/panta/upload-spec";
 
-type Quote = Record<string, unknown> & { createId?: string; paymentUsdc?: number | string };
+type Quote = Record<string, unknown> & {
+  createId?: string;
+  paymentUsdc?: number | string;
+  liquidityInjectionUsdc?: number | string;
+  platformRevenueUsdc?: number | string;
+  expiresAt?: string;
+};
+
+function localDateTimeValue(timestampMs: number): string {
+  const date = new Date(timestampMs - new Date(timestampMs).getTimezoneOffset() * 60_000);
+  return date.toISOString().slice(0, 16);
+}
+
+function usdcFromBaseUnits(value: unknown): number | null {
+  if ((typeof value !== "string" && typeof value !== "number") || String(value).trim() === "") return null;
+  const raw = Number(value);
+  if (!Number.isSafeInteger(raw) || raw < 0) return null;
+  return raw / 10 ** USDC_DECIMALS;
+}
+
+function formatUsdc(value: number | null): string {
+  return value === null ? "Not provided by Panta" : `${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })} USDC`;
+}
 
 // Used only if Panta's /categories/ allowlist can't be loaded.
 const FALLBACK_CATEGORIES = [
@@ -44,6 +67,9 @@ export default function CreateMarketPage() {
   const [category, setCategory] = useState("crypto");
   const [categories, setCategories] = useState<{ value: string; label: string }[]>(FALLBACK_CATEGORIES);
   const [imageUrl, setImageUrl] = useState("");
+  const [maxBudgetUsdc, setMaxBudgetUsdc] = useState("");
+  const [startAt, setStartAt] = useState(() => localDateTimeValue(Date.now() + (72 * 60 + 5) * 60_000));
+  const [endAt, setEndAt] = useState(() => localDateTimeValue(Date.now() + (144 * 60 + 5) * 60_000));
 
   const [quote, setQuote] = useState<Quote | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -95,6 +121,13 @@ export default function CreateMarketPage() {
     if (!PANTA_WRITES_ENABLED) return setError("Panta builds mainnet transactions. Set NEXT_PUBLIC_SOLANA_NETWORK=mainnet to create markets.");
     if (!ready) return setError(blockReason);
     if (question.trim().length < 10) return setError("Question must be at least 10 characters");
+    const startMs = new Date(startAt).getTime();
+    const endMs = new Date(endAt).getTime();
+    const minStartMs = Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000;
+    const budget = Number(maxBudgetUsdc);
+    if (!Number.isFinite(budget) || budget <= 0) return setError("Enter the maximum USDC budget you are willing to spend on market creation.");
+    if (!Number.isFinite(startMs) || startMs < minStartMs) return setError("Panta standard markets must start at least 72 hours and 5 minutes from now.");
+    if (!Number.isFinite(endMs) || endMs <= startMs) return setError("Market close time must be later than the start time.");
 
     setBusy(true);
     setError(null);
@@ -107,8 +140,15 @@ export default function CreateMarketPage() {
         description,
         category,
         imageUrl: imageUrl.trim() || undefined,
+        startTime: Math.floor(startMs / 1000),
+        endTime: Math.floor(endMs / 1000),
       });
       if (!q.createId) throw new Error("No createId in quote response: " + JSON.stringify(q));
+      const quotedPayment = usdcFromBaseUnits(q.paymentUsdc);
+      if (quotedPayment === null) throw new Error("Panta quote did not include a valid paymentUsdc amount in USDC base units.");
+      if (quotedPayment > budget) {
+        throw new Error(`Panta's current creation quote is ${formatUsdc(quotedPayment)}, above your ${formatUsdc(budget)} maximum budget. No transaction was built or signed. Increase your budget only if you accept the amount, or cancel and check whether Panta supports a lower-cost market configuration.`);
+      }
       setQuote(q);
       setStatus(null);
     } catch (err) {
@@ -123,6 +163,13 @@ export default function CreateMarketPage() {
   async function handleConfirm() {
     if (!quote?.createId || !publicKey || !signTransaction) return;
     const createId = quote.createId;
+    const expiryMs = typeof quote.expiresAt === "string" ? Date.parse(quote.expiresAt) : NaN;
+    if (Number.isFinite(expiryMs) && Date.now() >= expiryMs) {
+      setQuote(null);
+      setError("This Panta quote has expired. Request a fresh quote before building or signing a transaction.");
+      setStatus(null);
+      return;
+    }
 
     setBusy(true);
     setError(null);
@@ -137,6 +184,8 @@ export default function CreateMarketPage() {
       // Deserialize first; Panta's create transaction must pass the same RPC simulation
       // gate used by Meteora before we ask the wallet to sign.
       const tx = decodeTx(b64);
+      const lastValidBlockHeight =
+        typeof build.lastValidBlockHeight === "number" ? build.lastValidBlockHeight : undefined;
       if (tx instanceof VersionedTransaction) {
         if (!tx.message.recentBlockhash) throw new Error("Panta create transaction has no recent blockhash.");
         const feePayer = tx.message.staticAccountKeys[0];
@@ -149,22 +198,30 @@ export default function CreateMarketPage() {
         if (!tx.feePayer.equals(publicKey)) throw new Error("Panta create transaction fee payer does not match the connected wallet. Refusing to sign.");
       }
       const simulationTx = tx instanceof VersionedTransaction ? tx : new VersionedTransaction(tx.compileMessage());
-      const [balance, feeResult] = await Promise.all([
+      const [balance, feeResult, tokenBalance] = await Promise.all([
         connection.getBalance(publicKey, "confirmed"),
         connection.getFeeForMessage(simulationTx.message, "confirmed"),
+        usdcBalance(connection, publicKey),
       ]);
+      const quotedPayment = usdcFromBaseUnits(quote.paymentUsdc);
+      if (quotedPayment === null) throw new Error("The quote does not contain a valid USDC payment amount. Request a new quote.");
+      if (tokenBalance < quotedPayment) {
+        throw new Error(`Insufficient USDC for market creation. Panta quoted ${formatUsdc(quotedPayment)}, but this wallet has ${formatUsdc(tokenBalance)}. The transaction has not been signed. Set a maximum budget you are comfortable with and only proceed when the wallet has enough USDC.`);
+      }
       if (balance <= 0 || feeResult.value === null || balance < feeResult.value) {
         throw new Error(`This wallet cannot pay the market-creation transaction fee on the configured RPC (SOL balance: ${(balance / 1e9).toFixed(6)} SOL; estimated network fee: ${feeResult.value === null ? "unavailable" : (feeResult.value / 1e9).toFixed(6) + " SOL"}). Confirm that the app and wallet are both on Solana mainnet and fund this wallet with SOL before creating a market.`);
       }
-      setStatus("Simulating Panta market creation on the RPC...");
-      const { value: sim } = await connection.simulateTransaction(simulationTx, {
-        sigVerify: false,
-        replaceRecentBlockhash: true,
-        commitment: "confirmed",
-      });
-      if (sim.err) {
-        const logs = (sim.logs ?? []).slice(-15).join("\\n");
-        throw new Error(`Market transaction simulation failed: ${JSON.stringify(sim.err)}${logs ? "\\n" + logs : "\\nNo program logs were returned. Check mainnet RPC and fee-payer SOL balance."}`);
+      setStatus("Simulating Panta market creation and measuring the actual USDC spend...");
+      const sim = await simulateUsdcSpend(connection, tx, publicKey);
+      if (!sim.simulated) {
+        throw new Error(`${sim.error ?? "Market transaction simulation failed."}${sim.logs?.length ? "\\n" + sim.logs.join("\\n") : ""}`);
+      }
+      if (sim.spentUsdc === null || sim.spentUsdc <= 0) {
+        throw new Error("Could not verify the USDC amount this transaction will spend. Refusing to ask the wallet to sign.");
+      }
+      const spendTolerance = Math.max(0.01, quotedPayment * 0.005);
+      if (sim.spentUsdc > quotedPayment + spendTolerance) {
+        throw new Error(`Safety check blocked signing: Panta's quote is ${formatUsdc(quotedPayment)}, but simulation indicates a spend of ${formatUsdc(sim.spentUsdc)}. No transaction was signed.`);
       }
 
       setStatus("Simulation passed. Approve the transaction in your wallet...");
@@ -207,8 +264,7 @@ export default function CreateMarketPage() {
       )}
 
       <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-200 text-sm">
-        Creating a market on Panta costs real USDC (platform fee + seed liquidity). You will see the
-        exact fee from Panta and must confirm before anything is signed.
+        Market creation uses real mainnet USDC and SOL for network fees. Panta currently determines the actual creation payment in its quote; PredictLaunch will not pretend the creator can set a price unless Panta supports that parameter. Your maximum budget is enforced before building or signing.
       </div>
 
       <form onSubmit={handleQuote} className="space-y-5 rounded-2xl border border-zinc-800/90 bg-zinc-900/30 p-5 sm:p-6">
@@ -247,6 +303,52 @@ export default function CreateMarketPage() {
               </option>
             ))}
           </select>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="block text-sm font-medium mb-2">Market starts (local time) *</label>
+            <input
+              type="datetime-local"
+              className={inputCls}
+              value={startAt}
+              min={localDateTimeValue(Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000)}
+              onChange={(e) => setStartAt(e.target.value)}
+              disabled={busy || !!quote}
+              required
+            />
+            <p className="mt-1.5 text-xs text-zinc-500">Panta currently requires at least 72 hours' notice.</p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Market closes (local time) *</label>
+            <input
+              type="datetime-local"
+              className={inputCls}
+              value={endAt}
+              min={startAt}
+              onChange={(e) => setEndAt(e.target.value)}
+              disabled={busy || !!quote}
+              required
+            />
+            <p className="mt-1.5 text-xs text-zinc-500">Resolution timing follows Panta's current rules.</p>
+          </div>
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-2">Maximum creation budget (USDC) *</label>
+          <input
+            className={inputCls}
+            type="number"
+            inputMode="decimal"
+            min="0.01"
+            step="0.01"
+            value={maxBudgetUsdc}
+            onChange={(e) => setMaxBudgetUsdc(e.target.value)}
+            placeholder="Enter the most you are willing to spend"
+            disabled={busy || !!quote}
+            required
+          />
+          <p className="mt-1.5 text-xs text-zinc-500">
+            This is your spending limit, not a promise that Panta supports that exact creation price. We request Panta's live quote and block it if the quoted payment exceeds your limit.
+          </p>
         </div>
         <div>
           <label className="block text-sm font-medium mb-2">Image URL (optional)</label>
@@ -295,10 +397,14 @@ export default function CreateMarketPage() {
       {quote && (
         <div className="space-y-4 rounded-2xl border border-zinc-800/90 bg-zinc-900/50 p-5">
           <div>
-            <p className="text-sm text-zinc-400">Panta quote</p>
-            <p className="text-2xl font-bold mt-1">
-              {quote.paymentUsdc !== undefined ? `${quote.paymentUsdc} USDC` : "See details below"}
-            </p>
+            <p className="text-sm text-zinc-400">Panta quote · actual required payment</p>
+            <p className="text-2xl font-bold mt-1">{formatUsdc(usdcFromBaseUnits(quote.paymentUsdc))}</p>
+            <p className="mt-1 text-xs text-zinc-500">Your maximum budget: {formatUsdc(Number.isFinite(Number(maxBudgetUsdc)) && Number(maxBudgetUsdc) > 0 ? Number(maxBudgetUsdc) : null)}</p>
+          </div>
+          <div className="grid grid-cols-1 gap-2 rounded-xl border border-zinc-800 bg-zinc-950/70 p-4 text-sm sm:grid-cols-3">
+            <div><p className="text-xs text-zinc-500">Seed liquidity</p><p className="mt-1 font-medium">{formatUsdc(usdcFromBaseUnits(quote.liquidityInjectionUsdc))}</p></div>
+            <div><p className="text-xs text-zinc-500">Platform revenue</p><p className="mt-1 font-medium">{formatUsdc(usdcFromBaseUnits(quote.platformRevenueUsdc))}</p></div>
+            <div><p className="text-xs text-zinc-500">Quote expires</p><p className="mt-1 font-medium">{typeof quote.expiresAt === "string" ? new Date(quote.expiresAt).toLocaleString() : "As specified by Panta"}</p></div>
           </div>
           <details className="text-xs text-zinc-500">
             <summary className="cursor-pointer">Raw quote response</summary>

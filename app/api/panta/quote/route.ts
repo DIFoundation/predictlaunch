@@ -7,7 +7,7 @@ export async function POST(req: NextRequest) {
   if (blocked) return blocked;
   try {
     const body = await req.json();
-    const { wallet, question, description, category, imageUrl } = body ?? {};
+    const { wallet, question, description, category, imageUrl, startTime, endTime } = body ?? {};
 
     if (typeof wallet !== "string" || !wallet) {
       return NextResponse.json({ error: "wallet is required" }, { status: 400 });
@@ -19,6 +19,13 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    if (startTime !== undefined && (!Number.isSafeInteger(startTime) || startTime <= 0)) {
+      return NextResponse.json({ error: "startTime must be a positive Unix timestamp in seconds" }, { status: 400 });
+    }
+    if (endTime !== undefined && (!Number.isSafeInteger(endTime) || endTime <= 0)) {
+      return NextResponse.json({ error: "endTime must be a positive Unix timestamp in seconds" }, { status: 400 });
+    }
+
     // Only forward known fields -- this route must not be an open proxy to Panta.
     const result = await pantaServer.quoteCreateMarket({
       wallet,
@@ -26,6 +33,8 @@ export async function POST(req: NextRequest) {
       description: typeof description === "string" ? description.trim() : undefined,
       category: typeof category === "string" && category ? category : "crypto",
       imageUrl: typeof imageUrl === "string" && imageUrl ? imageUrl : undefined,
+      startTime: typeof startTime === "number" ? startTime : undefined,
+      endTime: typeof endTime === "number" ? endTime : undefined,
     });
     return NextResponse.json(result);
   } catch (err) {
