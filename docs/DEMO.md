@@ -1,6 +1,16 @@
 # Demo script (2–3 min)
 
-**Before recording:** `.env.local` with `NEXT_PUBLIC_SOLANA_NETWORK=devnet` (or mainnet with a funded wallet), the configured server-side RPC URLs (RPC Fast on mainnet; Solana Devnet RPC or another provider on devnet), `pk_live_` Panta key. Check `/status` is all green. Deploy or use a public https URL if launching on mainnet.
+## Preflight checklist (do this before recording)
+
+- Run `pnpm lint` and `pnpm build`; fix all errors before recording.
+- Start the app and open `/status`. Confirm the intended Solana network, RPC, and Panta status.
+- Confirm the wallet is connected to the expected network. Mainnet actions spend real USDC and SOL.
+- For a live market-creation demo, check the live quote first: Standard is published at 50 USDC and Breaking at 20 USDC. Make sure the wallet can cover the live quoted fee and has extra SOL for network fees. A 10 USDC budget will not cover either published market type.
+- For a live buy demo, use an amount of at least 0.10 USDC and verify the wallet has enough USDC plus SOL. This minimum reflects the observed Panta on-chain rejection for smaller orders; the quote and simulation remain authoritative.
+- Never record seed phrases, private keys, API keys, or personal wallet details. Do not bypass failed simulation or balance checks.
+- If funds are insufficient, do a read-only demo of markets, market details, conviction, and portfolio. Do not pretend a transaction succeeded.
+
+## Suggested recording (2–3 min)
 
 1. **Hook (15s)** – "Token launches are pure speculation. PredictLaunch makes community conviction measurable."
 2. **Markets (30s)** – `/markets`: live Panta markets → open one with volume → conviction panel + the fee it unlocks.
