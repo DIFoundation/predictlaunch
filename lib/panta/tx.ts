@@ -82,23 +82,23 @@ export async function simulateUsdcSpend(
   const preInfo = await conn.getAccountInfo(ata, "confirmed");
   const pre = preInfo ? tokenAmountFromData(preInfo.data) : BigInt(0);
 
-  // Panta's response is a legacy Transaction. Simulate that legacy object using web3.js's
-  // legacy overload instead of wrapping a legacy Message in VersionedTransaction (invalid).
-  // Panta supplies a fresh blockhash, so simulation does not need replaceRecentBlockhash.
-  const simulation = tx instanceof VersionedTransaction
-    ? await conn.simulateTransaction(tx, {
-        sigVerify: false,
-        replaceRecentBlockhash: true,
-        commitment: "confirmed",
-        accounts: { encoding: "base64", addresses: [ata.toBase58()] },
-      })
-    : await conn.simulateTransaction(tx, [], [ata]);
-  const { value } = simulation;
+  // Match the proven Meteora launch simulation path: compile the legacy message into a
+  // VersionedTransaction and ask the RPC to replace the blockhash for a signature-free dry run.
+  // This is simulation only; the original Panta transaction is still signed and sent unchanged.
+  const simulationTx = tx instanceof VersionedTransaction
+    ? tx
+    : new VersionedTransaction(tx.compileMessage());
+  const { value } = await conn.simulateTransaction(simulationTx, {
+    sigVerify: false,
+    replaceRecentBlockhash: true,
+    commitment: "confirmed",
+    accounts: { encoding: "base64", addresses: [ata.toBase58()] },
+  });
 
   if (value.err) {
     return {
       simulated: false,
-      error: `Simulation failed: ${JSON.stringify(value.err)}`,
+      error: `Simulation failed: ${JSON.stringify(value.err)}${(value.logs ?? []).length ? "\n" + (value.logs ?? []).join("\n") : ""}`,
       spentUsdc: null,
       logs: (value.logs ?? []).slice(-20),
     };
