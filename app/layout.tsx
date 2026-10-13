@@ -25,7 +25,7 @@ export default function RootLayout({
           <Navbar />
           <NetworkBanner />
           <main className="mx-auto max-w-7xl px-4 py-7 sm:px-5 sm:py-9">{children}</main>
-          <footer className="mx-auto mt-8 max-w-7xl border-t border-white/[0.06] px-4 py-8 text-xs text-zinc-600 sm:px-5">
+          <footer className="mx-auto mt-8 max-w-7xl border-t border-white/6 px-4 py-8 text-xs text-zinc-600 sm:px-5">
             Prediction markets <span className="text-zinc-400">Powered by Panta</span> · Launches on
             Meteora Dynamic Bonding Curve · RPC by RPC Fast
           </footer>

@@ -105,8 +105,6 @@ export default function CreateMarketPage() {
     );
   }, [marketType]);
 
-  const minStartDateTime = marketType === "standard" ? localDateTimeValue(Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000) : undefined;
-
   // Best-effort image upload (endpoint + response shape are guessed -- see lib/panta/upload-spec.ts).
   // Falls back cleanly: on any failure, the manual Image URL field above still works.
   async function handleFileUpload(file: File) {
