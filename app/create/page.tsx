@@ -96,6 +96,8 @@ export default function CreateMarketPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  const minStartDateTime = marketType === "standard" ? localDateTimeValue(Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000) : undefined;
+
   // Best-effort image upload (endpoint + response shape are guessed -- see lib/panta/upload-spec.ts).
   // Falls back cleanly: on any failure, the manual Image URL field above still works.
   async function handleFileUpload(file: File) {
@@ -348,7 +350,7 @@ export default function CreateMarketPage() {
               type="datetime-local"
               className={inputCls}
               value={startAt}
-              min={marketType === "standard" ? localDateTimeValue(Date.now() + 72 * 60 * 60 * 1000 + 5 * 60 * 1000) : undefined}
+              min={minStartDateTime}
               onChange={(e) => setStartAt(e.target.value)}
               disabled={busy || !!quote}
               required
@@ -366,7 +368,7 @@ export default function CreateMarketPage() {
               disabled={busy || !!quote}
               required
             />
-            <p className="mt-1.5 text-xs text-zinc-500">Resolution timing follows Panta's current rules.</p>
+            <p className="mt-1.5 text-xs text-zinc-500">Resolution timing follows Panta&apos;s current rules.</p>
           </div>
         </div>
         <div>
@@ -384,7 +386,7 @@ export default function CreateMarketPage() {
             required
           />
           <p className="mt-1.5 text-xs text-zinc-500">
-            This is your spending limit, not a promise that Panta supports that exact creation price. We request Panta's live quote and block it if the quoted payment exceeds your limit.
+            This is your spending limit, not a promise that Panta supports that exact creation price. We request Panta&apos;s live quote and block it if the quoted payment exceeds your limit.
           </p>
         </div>
         <div>
@@ -417,7 +419,7 @@ export default function CreateMarketPage() {
             </label>
             <span className="text-xs text-zinc-600">beta, unverified against Panta&apos;s real API</span>
           </div>
-          {uploadError && <p className="text-xs text-red-400 mt-1.5 whitespace-pre-wrap break-words">{uploadError}</p>}
+          {uploadError && <p className="text-xs text-red-400 mt-1.5 whitespace-pre-wrap wrap-break-word">{uploadError}</p>}
         </div>
 
         {!quote && (

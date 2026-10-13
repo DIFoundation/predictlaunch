@@ -135,11 +135,11 @@ export default async function MarketDetailPage({ params }: Props) {
           <BarChart3 size={17} className="text-zinc-500" />
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/[0.045] p-4">
+          <div className="rounded-xl border border-emerald-400/20 bg-emerald-400/4.5 p-4">
             <div className="flex items-center justify-between"><span className="text-sm font-semibold text-emerald-300">YES</span><span className="text-xl font-semibold tabular-nums">{market.yesPrice === null ? "—" : `${(market.yesPrice * 100).toFixed(1)}¢`}</span></div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${(market.yesPrice ?? 0) * 100}%` }} /></div>
           </div>
-          <div className="rounded-xl border border-rose-400/20 bg-rose-400/[0.045] p-4">
+          <div className="rounded-xl border border-rose-400/20 bg-rose-400/4.5 p-4">
             <div className="flex items-center justify-between"><span className="text-sm font-semibold text-rose-300">NO</span><span className="text-xl font-semibold tabular-nums">{market.noPrice === null ? "—" : `${(market.noPrice * 100).toFixed(1)}¢`}</span></div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-rose-400" style={{ width: `${(market.noPrice ?? 0) * 100}%` }} /></div>
           </div>

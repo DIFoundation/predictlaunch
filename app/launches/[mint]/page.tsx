@@ -142,7 +142,7 @@ export default function TokenPage({ params }: { params: Promise<{ mint: string }
               <span className="font-mono text-emerald-300">{(pool.progress * 100).toFixed(1)}%</span>
             </div>
             <div className="h-2 overflow-hidden rounded-full bg-zinc-800">
-              <div className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-lime-300 transition-all" style={{ width: `${pool.progress * 100}%` }} />
+              <div className="h-full rounded-full bg-liner-to-r from-emerald-500 to-lime-300 transition-all" style={{ width: `${pool.progress * 100}%` }} />
             </div>
           </div>
 

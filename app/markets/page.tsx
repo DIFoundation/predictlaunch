@@ -96,12 +96,12 @@ export default async function MarketsPage() {
                 <ArrowUpRight size={17} className="shrink-0 text-zinc-600 transition group-hover:text-emerald-300" />
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3">
-                <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/[0.045] p-3">
+                <div className="rounded-xl border border-emerald-400/15 bg-emerald-400/4.5 p-3">
                   <div className="text-[11px] font-medium tracking-wide text-emerald-300">YES</div>
                   <div className="mt-1 text-xl font-semibold tabular-nums">{probability(m.yesPrice)}</div>
                   <div className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${(m.yesPrice ?? 0) * 100}%` }} /></div>
                 </div>
-                <div className="rounded-xl border border-rose-400/15 bg-rose-400/[0.045] p-3">
+                <div className="rounded-xl border border-rose-400/15 bg-rose-400/4.5 p-3">
                   <div className="text-[11px] font-medium tracking-wide text-rose-300">NO</div>
                   <div className="mt-1 text-xl font-semibold tabular-nums">{probability(m.noPrice)}</div>
                   <div className="mt-2 h-1 overflow-hidden rounded-full bg-zinc-800"><div className="h-full rounded-full bg-rose-400" style={{ width: `${(m.noPrice ?? 0) * 100}%` }} /></div>

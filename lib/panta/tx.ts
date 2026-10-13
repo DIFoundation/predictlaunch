@@ -158,7 +158,7 @@ export function buildPantaTransaction(build: unknown, expectedWallet: PublicKey)
     const item = raw as { programId?: unknown; data?: unknown; accounts?: unknown };
     if (typeof item.programId !== "string" || typeof item.data !== "string" || !Array.isArray(item.accounts)) throw new Error("Panta instruction " + (index + 1) + " is malformed.");
     const programId = new PublicKey(item.programId);
-    const keys = item.accounts.map((rawAccount: unknown, accountIndex: number) => {
+    const keys = item.accounts.map((rawAccount: unknown) => {
       if (!rawAccount || typeof rawAccount !== "object") throw new Error("Panta instruction account is malformed.");
       const account = rawAccount as { pubkey?: unknown; isSigner?: unknown; isWritable?: unknown };
       if (typeof account.pubkey !== "string" || typeof account.isSigner !== "boolean" || typeof account.isWritable !== "boolean") throw new Error("Panta instruction account is malformed.");
